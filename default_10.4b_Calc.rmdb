@@ -19,14 +19,15 @@
       <parameter name="mergeoptions" >-testassociated</parameter>
       <!--parameter name="trendoptions" ></parameter-->
       <parameter name="triagefile">triage.tdb</parameter>
-      <parameter name="triageoptions">-severity IFE -teststatus FEW -rulesfile (%RMDBDIR%)/transform.txt -verbose</parameter>
+      <parameter name="triageoptions">-severity IFE -teststatus FEW -verbose</parameter>
       <parameter name="mergefileAll">(%DATADIR%)/logs/(%regPrefix%)_merge_all.ucdb</parameter>
       <parameter name="rankfile">(%DATADIR%)/(%regPrefix%).rank</parameter>
       <parameter name="rankoptions">-fewest -log (%rankfile%).log</parameter>
       <parameter name="trendfile" >(%DATADIR%)/logs/(%regPrefix%)_trend.ucdb</parameter>
-      <parameter name="reportoptions">-html -details -source -code bcestxf -assert -cvg -htmldir</parameter>
+      <parameter name="reportoptions">-html -details -source -code bcestxf -assert -cvg -htmldir (%DATADIR%)/report/coverage</parameter>
       <parameter name="CoverageAutoExcludeFile">(%DATADIR%)/covercheck_exclude.do</parameter>
       <parameter name="CoverageManualExcludeFile">manual_exclude.do</parameter>
+      <parameter name="faillog">(%regPrefix%)_failed_tests.log </parameter>
     </parameters>
 
     <members>
@@ -78,11 +79,10 @@
       <!-- RMDB parameters for automatic rerun -->
       <parameter name="DEBUGMODE">0</parameter>
       <!-- USER parameters for global simualtion mode and test to be ran -->
-      <parameter name="SNAPSHOT" ></parameter>
+      <parameter name="SNAPSHOT" >TBD</parameter>
       <parameter name="runmode">-c</parameter>
       <parameter name="testfile">TBD</parameter>
       <parameter name="testfile_tab">TBD</parameter>
-      <!--parameter name="testfilePath">(%RMDBDIR%)</parameter-->
       <parameter name="TESTCASES" type = "tcl">[ReadCalc (%testfile%) (%testfile_tab%)]</parameter>
     </parameters>
     <members>
@@ -133,7 +133,7 @@
     <localfile name="report.do" expand="yes">
       <command>#generate coverage report</command>
       <!--command>vcover report -html -details -source -code bcestxf -assert -cvg -htmldir (%DATADIR%)/report/coverage (%mergefile%) &gt;&amp; /dev/null;</command-->
-      <command>vcover report (%reportoptions%) (%DATADIR%)/report/coverage (%mergefile%) &gt;&amp; /dev/null;</command>
+      <command>vcover report (%reportoptions%) (%mergefile%) &gt;&amp; /dev/null;</command>
       <command>#automatic trendfile created at end of vrun so report is always n-1</command>
       <command>#will be removed if fixed in future release</command>
       <command>#generate tmp trend file adding the current regression results </command>
@@ -153,9 +153,13 @@
   <!-- ========================================================== -->
   
   <runnable name="Compile" type="task">
+   <parameters>
+      <parameter name="CompileCommand">TBD</parameter>
+   </parameters>
     <execScript launch="vsim">
-      <command>cd (%VRUNDIR%)</command>
-      <command>make cov=1 TB_ENV=UL SIMULATOR=questa -f Makefile.questa comp_dut libs comp</command>
+      <command>(%CompileCommand%)</command>
+      <!--command>cd (%VRUNDIR%)</command>
+      <command>make cov=1 TB_ENV=UL SIMULATOR=questa -f Makefile.questa check clean .regression_opts comp_dut libs comp</command-->
     </execScript>
   </runnable>
 
@@ -210,7 +214,7 @@
       <command>(%vsimRundo%)</command>
     </localfile>
     <localfile name="postcov.do" expand="yes">
-      <command>if {[string equal [coverage attribute -name TSTAT_REASON -concise] "Crashed"]} 
+      <command>if {![string equal [coverage attribute -name TSTAT_REASON -concise] "Crashed"]} 
 	{
  	 if {[coverage attribute -name TESTSTATUS -concise]==2} {coverage clear;coverage save (%ucdbfile%);}
 	};</command>
@@ -364,42 +368,31 @@
   <!-- parameters here within a usertcl element.     == -->
   <!-- ================================================ -->
   <usertcl name="default">
-    proc GetTestCases {file_name} {
-    set tclist ""
-    set tfile [open $file_name r]
-    while {![eof $tfile]} {
-    gets $tfile line
-    if {[string range $line 0 0] != "#"} {
-    if {[llength $line] != 0} {
-    if {[llength $line] == 1} {
-    set num 1
+<!-- genrand fix to fix GUI display issue -->
+    proc GenRand { randCnt } {
+    if {![file exist SeedDir]} { file mkdir SeedDir }
+    if {[file exist [file join SeedDir $randCnt]]} {
+      set ifile [open [file join SeedDir $randCnt] "r"]
+      set seed [lindex [read $ifile] 0]
+      close $ifile
+      return $seed
     } else {
-    set num [lindex $line 1]
+      set maxFactor [expr 2147483647 + 1]
+      set value [expr (int (rand() * ($maxFactor - 1))) % $maxFactor]
+      set ofile [open [file join SeedDir $randCnt] "w"]
+      puts $ofile $value
+      close $ofile
+      return $value
     }
-    for {set repeat 2} {$repeat &lt; [expr $num + 2]} {incr repeat} {
-    if {[lindex $line $repeat] == ""} {
-    lappend tclist [format "%s.%s" [lindex $line 0] [GenRand]]
-    } else {
-    if { [lindex $line $repeat] == "random"} {
-    lappend tclist [format "%s.%s" [lindex $line 0] [GenRand]]
-    } else {
-    lappend tclist [format "%s.%s" [lindex $line 0] [lindex $line $repeat]]
-    }
-    }
-    }
-    }
-    }
-    }
-    close $tfile
-    return $tclist
-    }
+   }
+<!-- oldGenRand with the issue of GUI displaying 2x tests
 
    proc GenRand { } {
     set maxFactor [expr 2147483647 + 1]
     set value [expr (int (rand() * ($maxFactor - 1))) % $maxFactor]
     return $value
    }
-    
+-->    
     proc OkToMerge {userdata} {
     upvar $userdata data
     return 1 ;# passed and failed ...  OK to merge
@@ -460,6 +453,28 @@
    }
 
    proc XmlReader {zipname filename} {
+
+     global env auto_path
+     catch {package require xml} error
+     if {![string is double $error]} {
+       lappend auto_path $env(VSIM_LIBRARY) $env(MODEL_TECH)
+       catch {package require xml} error
+     }
+     catch {exec unzip -o $zipname $filename} error 
+     set ifile [open $filename "r"]
+     set rawxml [read $ifile]
+     close $ifile
+     file delete $filename
+
+     set p [::xml::parser]
+     $p configure -elementstartcommand Xmlestart
+     $p configure -elementendcommand Xmleend
+     $p configure -characterdatacommand Xmlcdata
+     catch {$p parse $rawxml} msg
+   }
+<!-- old xml reader not showing pending tests
+   proc XmlReader {zipname filename} {
+
      package require xml
      set hZip [zip open $zipname]
      catch {zip set $hZip $filename} error
@@ -473,6 +488,7 @@
      catch {$p parse $rawxml} msg
    }
 
+-->
    proc ReadCalc {filename sheet} {
      global tlistfile sheetName
      set tlistfile ""
@@ -494,7 +510,7 @@
            incr count
            for {set repeat 1} {$repeat &lt; $count} {incr repeat} {
              if {[string match [lindex $seeds [expr $repeat - 1]] ""] || [string match [lindex $seeds [expr $repeat - 1]] "random"]} {
-               set taskname [format "%s.%s" [lindex $testname 0] [GenRand]]
+               set taskname [format "%s.%s" [lindex $testname 0] [GenRand [incr randCnt 1]]]
              } else {
                set taskname [format "%s.%s" [lindex $testname 0] [lindex $seeds [expr $repeat - 1]]]
              }
@@ -524,10 +540,10 @@
     }
     for {set repeat 2} {$repeat &lt; [expr $num + 2]} {incr repeat} {
     if {[lindex $line $repeat] == ""} {
-    lappend tclist [format "%s.%s" [lindex $line 0] [GenRand]]
+    lappend tclist [format "%s.%s" [lindex $line 0] [GenRand [incr randCnt 1]]]
     } else {
     if { [lindex $line $repeat] == "random"} {
-    lappend tclist [format "%s.%s" [lindex $line 0] [GenRand]]
+    lappend tclist [format "%s.%s" [lindex $line 0] [GenRand [incr randCnt 1]]]
     } else {
     lappend tclist [format "%s.%s" [lindex $line 0] [lindex $line $repeat]]
     }
