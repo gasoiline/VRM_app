@@ -19,14 +19,15 @@
       <parameter name="mergeoptions" >-testassociated</parameter>
       <!--parameter name="trendoptions" ></parameter-->
       <parameter name="triagefile">triage.tdb</parameter>
-      <parameter name="triageoptions">-severity IFE -teststatus FEW -rulesfile (%RMDBDIR%)/transform.txt -verbose</parameter>
+      <parameter name="triageoptions">-severity IFE -teststatus FEW -verbose</parameter>
       <parameter name="mergefileAll">(%DATADIR%)/logs/(%regPrefix%)_merge_all.ucdb</parameter>
       <parameter name="rankfile">(%DATADIR%)/(%regPrefix%).rank</parameter>
       <parameter name="rankoptions">-fewest -log (%rankfile%).log</parameter>
       <parameter name="trendfile" >(%DATADIR%)/logs/(%regPrefix%)_trend.ucdb</parameter>
-      <parameter name="reportoptions">-html -details -source -code bcestxf -assert -cvg -htmldir</parameter>
+      <parameter name="reportoptions">-html -details -source -code bcestxf -assert -cvg -htmldir (%DATADIR%)/report/coverage</parameter>
       <parameter name="CoverageAutoExcludeFile">(%DATADIR%)/covercheck_exclude.do</parameter>
       <parameter name="CoverageManualExcludeFile">manual_exclude.do</parameter>
+      <parameter name="faillog">(%regPrefix%)_failed_tests.log </parameter>
     </parameters>
 
     <members>
@@ -133,7 +134,7 @@
     <localfile name="report.do" expand="yes">
       <command>#generate coverage report</command>
       <!--command>vcover report -html -details -source -code bcestxf -assert -cvg -htmldir (%DATADIR%)/report/coverage (%mergefile%) &gt;&amp; /dev/null;</command-->
-      <command>vcover report (%reportoptions%) (%DATADIR%)/report/coverage (%mergefile%) &gt;&amp; /dev/null;</command>
+      <command>vcover report (%reportoptions%) (%mergefile%) &gt;&amp; /dev/null;</command>
       <command>#automatic trendfile created at end of vrun so report is always n-1</command>
       <command>#will be removed if fixed in future release</command>
       <command>#generate tmp trend file adding the current regression results </command>
@@ -155,7 +156,7 @@
   <runnable name="Compile" type="task">
     <execScript launch="vsim">
       <command>cd (%VRUNDIR%)</command>
-      <command>make cov=1 TB_ENV=UL SIMULATOR=questa -f Makefile.questa comp_dut libs comp</command>
+      <command>make cov=1 TB_ENV=UL SIMULATOR=questa -f Makefile.questa check clean .regression_opts comp_dut libs comp</command>
     </execScript>
   </runnable>
 
@@ -210,7 +211,7 @@
       <command>(%vsimRundo%)</command>
     </localfile>
     <localfile name="postcov.do" expand="yes">
-      <command>if {[string equal [coverage attribute -name TSTAT_REASON -concise] "Crashed"]} 
+      <command>if {![string equal [coverage attribute -name TSTAT_REASON -concise] "Crashed"]} 
 	{
  	 if {[coverage attribute -name TESTSTATUS -concise]==2} {coverage clear;coverage save (%ucdbfile%);}
 	};</command>
@@ -472,6 +473,28 @@
      $p configure -characterdatacommand Xmlcdata
      catch {$p parse $rawxml} msg
    }
+
+<!--
+ proc XmlReader {zipname filename} {
+     global env auto_path
+     catch {package require xml} error
+     if {![string is double $error]} {
+	lappend auto_path $env{VSIM_LIBRARY) $env(MODEL_TECH)
+	catch {package require xml} error
+     }
+     catch {exec unzip -o $zipname $filename} error
+     set ifile [open $filename "r"]
+     set rawxml [read $ifile]
+     close $ifile
+     file delete $filename
+
+     set p [::xml::parser]
+     $p configure -elementstartcommand Xmlestart
+     $p configure -elementendcommand Xmleend
+     $p configure -characterdatacommand Xmlcdata
+     catch {$p parse $rawxml} msg
+   }
+-->
 
    proc ReadCalc {filename sheet} {
      global tlistfile sheetName
