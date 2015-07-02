@@ -78,11 +78,10 @@
       <!-- RMDB parameters for automatic rerun -->
       <parameter name="DEBUGMODE">0</parameter>
       <!-- USER parameters for global simualtion mode and test to be ran -->
-      <parameter name="SNAPSHOT" ></parameter>
+      <parameter name="SNAPSHOT" >TBD</parameter>
       <parameter name="runmode">-c</parameter>
       <parameter name="testfile">TBD</parameter>
       <parameter name="testfile_tab">TBD</parameter>
-      <!--parameter name="testfilePath">(%RMDBDIR%)</parameter-->
       <parameter name="TESTCASES" type = "tcl">[ReadCalc (%testfile%) (%testfile_tab%)]</parameter>
     </parameters>
     <members>
@@ -153,9 +152,14 @@
   <!-- ========================================================== -->
   
   <runnable name="Compile" type="task">
-    <execScript launch="vsim">
-      <command>cd (%VRUNDIR%)</command>
-      <command>make cov=1 TB_ENV=UL SIMULATOR=questa -f Makefile.questa comp_dut libs comp</command>
+   <parameters>
+<!-- TODO put the type here and change the testscase value depending on thaT-->
+      <parameter name="CompileCommand">TBD</parameter>
+   </parameters>
+   <execScript launch="vsim">
+      <command>(%CompileCommand%)</command>
+      <!--command>cd (%VRUNDIR%)</command>
+      <command>make cov=1 TB_ENV=UL SIMULATOR=questa -f Makefile.questa comp_dut libs comp</command-->
     </execScript>
   </runnable>
 
@@ -176,19 +180,73 @@
   <!-- == Leaf repeats for each testcase for the number == -->
   <!-- == of seeds defined within the testfile.         == -->
   <!-- =================================================== -->
+<!-- TRIAL TO FIX WRONG PENDING TESTS CALCULATION  
   <runnable name="uvm_test" type="task" base="test_base" foreach="(%TESTCASES%)" index="testcase">
     <parameters>
+-->
 <!-- TODO put the type here and change the testscase value depending on thaT-->
+<!--
       <parameter name="testname">(%testcase%)</parameter>
       <parameter name="uvm_testname" type="tcl">[lindex [split (%testcase%) "."] 0]</parameter>
       <parameter name="seed" type="tcl">[lindex [split (%testcase%) "."] 1]</parameter>
       <parameter name="testoptions" type="tcl">[lindex [GetTestSettings (%testcase%)] 0] +UVM_TESTNAME=(%uvm_testname%)</parameter>
     </parameters>
   </runnable>
-  
+
   <runnable name="test_base" type="base">
     <parameters>
       <parameter name="seed">random</parameter>
+      <parameter name="ucdbfile">(%INSTANCE%).ucdb</parameter>
+      <parameter name="UCDBFILTER"></parameter>
+      <parameter name="vsimoptions"> -modelsimini (%MODELSIMINI%) -do "run.do" -wlf (%INSTANCE%).wlf -l (%INSTANCE%).log -title (%INSTANCE%) -sv_seed (%seed%) (%UCDBFILTER%) -cvgprecollect (%mergefile%)</parameter>
+
+      <parameter name="vsimPrecommand"></parameter>
+      <parameter name="vsimRundo">coverage save -cvg -codeAll -assert -onexit (%ucdbfile%);run -a;q -f</parameter>
+      <parameter name="vsimPostcommand"></parameter>
+    </parameters>
+
+    <localfile name="precov.do" expand="yes">
+      <command>coverage attribute -name TESTNAME -value (%testname%);</command>
+      <command>coverage attribute -test (%testname%) -name TESTSTATUS -value 2;</command>
+      <command>coverage attribute -test (%testname%) -name TSTAT_REASON -value $REASON;</command>
+      <command>coverage attribute;</command>
+      <command>coverage save (%ucdbfile%);</command>
+    </localfile>
+    <localfile name="run.do" expand="yes">
+      <command>if {(%DEBUGMODE%) == 1 } { add log -r /*}</command>
+      <command>(%vsimRundo%)</command>
+    </localfile>
+    <localfile name="postcov.do" expand="yes">
+      <command>if {[string equal [coverage attribute -name TSTAT_REASON -concise] "Crashed"]} 
+	{
+ 	 if {[coverage attribute -name TESTSTATUS -concise]==2} {coverage clear;coverage save (%ucdbfile%);}
+	};</command>
+      <command>coverage attribute;</command>
+    </localfile>
+
+    <execScript launch="exec">
+      <command>(%vsimPrecommand%)</command>
+-->
+       <!-- set empty ucdb coverage to crashed by default -->
+<!--
+      <command>vsim -c -do "coverage save -empty (%ucdbfile%);q -f"</command>
+      <command>vsim -c -viewcov (%ucdbfile%) -do "set REASON Crashed;do precov.do;q -f"</command>
+-->
+       <!-- run test -->
+      <!--command>vsim (%vsimoptions%) (%testoptions%) (%runmode%) (%SNAPSHOT%)</command-->
+       <!-- clear coverage if test ran and failed -->
+      <!--command>vsim -c -viewcov (%ucdbfile%) -do "do postcov.do;q -f"</command>
+      <command>(%vsimPostcommand%)</command>
+    </execScript>
+  </runnable-->
+
+  <runnable name="uvm_test" type="task" foreach="(%TESTCASES%)" index="testcase">
+    <parameters>
+       <parameter name="testname">(%testcase%)</parameter>
+      <parameter name="uvm_testname" type="tcl">[lindex [split (%testcase%) "."] 0]</parameter>
+      <parameter name="seed" type="tcl">[lindex [split (%testcase%) "."] 1]</parameter>
+      <parameter name="testoptions" type="tcl">[lindex [GetTestSettings (%testcase%)] 0] +UVM_TESTNAME=(%uvm_testname%)</parameter>
+
       <parameter name="ucdbfile">(%INSTANCE%).ucdb</parameter>
       <parameter name="UCDBFILTER"></parameter>
       <parameter name="vsimoptions"> -modelsimini (%MODELSIMINI%) -do "run.do" -wlf (%INSTANCE%).wlf -l (%INSTANCE%).log -title (%INSTANCE%) -sv_seed (%seed%) (%UCDBFILTER%) -cvgprecollect (%mergefile%)</parameter>
@@ -229,7 +287,6 @@
       <command>(%vsimPostcommand%)</command>
     </execScript>
   </runnable>
-
 
        <!-- ========================================================== -->
        <!-- TOPLEVEL RUNNABLES ANALYSIS -->
@@ -364,42 +421,31 @@
   <!-- parameters here within a usertcl element.     == -->
   <!-- ================================================ -->
   <usertcl name="default">
-    proc GetTestCases {file_name} {
-    set tclist ""
-    set tfile [open $file_name r]
-    while {![eof $tfile]} {
-    gets $tfile line
-    if {[string range $line 0 0] != "#"} {
-    if {[llength $line] != 0} {
-    if {[llength $line] == 1} {
-    set num 1
+<!-- genrand fix to fix GUI display issue -->
+    proc GenRand { randCnt } {
+    if {![file exist SeedDir]} { file mkdir SeedDir }
+    if {[file exist [file join SeedDir $randCnt]]} {
+      set ifile [open [file join SeedDir $randCnt] "r"]
+      set seed [lindex [read $ifile] 0]
+      close $ifile
+      return $seed
     } else {
-    set num [lindex $line 1]
+      set maxFactor [expr 2147483647 + 1]
+      set value [expr (int (rand() * ($maxFactor - 1))) % $maxFactor]
+      set ofile [open [file join SeedDir $randCnt] "w"]
+      puts $ofile $value
+      close $ofile
+      return $value
     }
-    for {set repeat 2} {$repeat &lt; [expr $num + 2]} {incr repeat} {
-    if {[lindex $line $repeat] == ""} {
-    lappend tclist [format "%s.%s" [lindex $line 0] [GenRand]]
-    } else {
-    if { [lindex $line $repeat] == "random"} {
-    lappend tclist [format "%s.%s" [lindex $line 0] [GenRand]]
-    } else {
-    lappend tclist [format "%s.%s" [lindex $line 0] [lindex $line $repeat]]
-    }
-    }
-    }
-    }
-    }
-    }
-    close $tfile
-    return $tclist
-    }
+   }
+<!-- oldGenRand with the issue of GUI displaying 2x tests
 
    proc GenRand { } {
     set maxFactor [expr 2147483647 + 1]
     set value [expr (int (rand() * ($maxFactor - 1))) % $maxFactor]
     return $value
    }
-    
+-->    
     proc OkToMerge {userdata} {
     upvar $userdata data
     return 1 ;# passed and failed ...  OK to merge
@@ -460,6 +506,28 @@
    }
 
    proc XmlReader {zipname filename} {
+
+     global env auto_path
+     catch {package require xml} error
+     if {![string is double $error]} {
+       lappend auto_path $env(VSIM_LIBRARY) $env(MODEL_TECH)
+       catch {package require xml} error
+     }
+     catch {exec unzip -o $zipname $filename} error 
+     set ifile [open $filename "r"]
+     set rawxml [read $ifile]
+     close $ifile
+     file delete $filename
+
+     set p [::xml::parser]
+     $p configure -elementstartcommand Xmlestart
+     $p configure -elementendcommand Xmleend
+     $p configure -characterdatacommand Xmlcdata
+     catch {$p parse $rawxml} msg
+   }
+<!-- old xml reader not showing pending tests
+   proc XmlReader {zipname filename} {
+
      package require xml
      set hZip [zip open $zipname]
      catch {zip set $hZip $filename} error
@@ -473,6 +541,7 @@
      catch {$p parse $rawxml} msg
    }
 
+-->
    proc ReadCalc {filename sheet} {
      global tlistfile sheetName
      set tlistfile ""
@@ -494,7 +563,7 @@
            incr count
            for {set repeat 1} {$repeat &lt; $count} {incr repeat} {
              if {[string match [lindex $seeds [expr $repeat - 1]] ""] || [string match [lindex $seeds [expr $repeat - 1]] "random"]} {
-               set taskname [format "%s.%s" [lindex $testname 0] [GenRand]]
+               set taskname [format "%s.%s" [lindex $testname 0] [GenRand [incr randCnt 1]]]
              } else {
                set taskname [format "%s.%s" [lindex $testname 0] [lindex $seeds [expr $repeat - 1]]]
              }
@@ -524,10 +593,10 @@
     }
     for {set repeat 2} {$repeat &lt; [expr $num + 2]} {incr repeat} {
     if {[lindex $line $repeat] == ""} {
-    lappend tclist [format "%s.%s" [lindex $line 0] [GenRand]]
+    lappend tclist [format "%s.%s" [lindex $line 0] [GenRand [incr randCnt 1]]]
     } else {
     if { [lindex $line $repeat] == "random"} {
-    lappend tclist [format "%s.%s" [lindex $line 0] [GenRand]]
+    lappend tclist [format "%s.%s" [lindex $line 0] [GenRand [incr randCnt 1]]]
     } else {
     lappend tclist [format "%s.%s" [lindex $line 0] [lindex $line $repeat]]
     }
