@@ -18,7 +18,7 @@
       <parameter name="tplanoptions">-format Excel -verbose</parameter>      
       <parameter name="mergeoptions" >-testassociated</parameter>
       <parameter name="trendoptions" ></parameter>
-      <parameter name="triagefile">triage.tdb</parameter>
+      <parameter name="triagefile">(%regPrefix%)_triage.tdb</parameter>
       <parameter name="triageoptions">-severity IFE -teststatus FEW -verbose</parameter>
       <parameter name="mergefileAll">(%DATADIR%)/logs/(%regPrefix%)_merge_all.ucdb</parameter>
       <parameter name="rankfile">(%DATADIR%)/(%regPrefix%).rank</parameter>
