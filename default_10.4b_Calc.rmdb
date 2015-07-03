@@ -14,10 +14,10 @@
       <parameter name="regPrefix">reg</parameter>
       <!-- RMDB parameters for automation of coverage collection -->
       <parameter name="mergefile" export="yes">(%regPrefix%)_merge.ucdb</parameter>
-      <parameter name="tplanfile">(%VRUNDIR%)/yourproject_testplan.xml</parameter>
+      <parameter name="tplanfile">TBD</parameter>
       <parameter name="tplanoptions">-format Excel -verbose</parameter>      
       <parameter name="mergeoptions" >-testassociated</parameter>
-      <!--parameter name="trendoptions" ></parameter-->
+      <parameter name="trendoptions" ></parameter>
       <parameter name="triagefile">triage.tdb</parameter>
       <parameter name="triageoptions">-severity IFE -teststatus FEW -verbose</parameter>
       <parameter name="mergefileAll">(%DATADIR%)/logs/(%regPrefix%)_merge_all.ucdb</parameter>
@@ -26,7 +26,7 @@
       <parameter name="trendfile" >(%DATADIR%)/logs/(%regPrefix%)_trend.ucdb</parameter>
       <parameter name="reportoptions">-html -details -source -code bcestxf -assert -cvg -htmldir (%DATADIR%)/report/coverage</parameter>
       <parameter name="CoverageAutoExcludeFile">(%DATADIR%)/covercheck_exclude.do</parameter>
-      <parameter name="CoverageManualExcludeFile">manual_exclude.do</parameter>
+      <parameter name="CoverageManualExcludeFile">TBD</parameter>
       <parameter name="faillog">(%regPrefix%)_failed_tests.log </parameter>
     </parameters>
 
@@ -79,10 +79,10 @@
       <!-- RMDB parameters for automatic rerun -->
       <parameter name="DEBUGMODE">0</parameter>
       <!-- USER parameters for global simualtion mode and test to be ran -->
-      <parameter name="SNAPSHOT" >TBD</parameter>
-      <parameter name="runmode">-c</parameter>
-      <parameter name="testfile">TBD</parameter>
-      <parameter name="testfile_tab">TBD</parameter>
+      <parameter name="SNAPSHOT" >REQUIRED</parameter>
+      <parameter name="RUNMODE">-c</parameter>
+      <parameter name="testfile">REQUIRED</parameter>
+      <parameter name="testfile_tab">REQUIRED</parameter>
       <parameter name="TESTCASES" type = "tcl">[ReadCalc (%testfile%) (%testfile_tab%)]</parameter>
     </parameters>
     <members>
@@ -154,7 +154,7 @@
   
   <runnable name="Compile" type="task">
    <parameters>
-      <parameter name="CompileCommand">TBD</parameter>
+      <parameter name="CompileCommand">REQUIRED</parameter>
    </parameters>
     <execScript launch="vsim">
       <command>(%CompileCommand%)</command>
@@ -197,9 +197,10 @@
       <parameter name="UCDBFILTER"></parameter>
       <parameter name="vsimoptions"> -modelsimini (%MODELSIMINI%) -do "run.do" -wlf (%INSTANCE%).wlf -l (%INSTANCE%).log -title (%INSTANCE%) -sv_seed (%seed%) (%UCDBFILTER%) -cvgprecollect (%mergefile%)</parameter>
 
-      <parameter name="vsimPrecommand"></parameter>
+      <parameter name="testPrecommand"></parameter>
       <parameter name="vsimRundo">coverage save -cvg -codeAll -assert -onexit (%ucdbfile%);run -a;q -f</parameter>
-      <parameter name="vsimPostcommand"></parameter>
+      <parameter name="vsimDebugdo">add log -r /* -depth 4</parameter>
+      <parameter name="testPostcommand"></parameter>
     </parameters>
 
     <localfile name="precov.do" expand="yes">
@@ -210,8 +211,11 @@
       <command>coverage save (%ucdbfile%);</command>
     </localfile>
     <localfile name="run.do" expand="yes">
-      <command>if {(%DEBUGMODE%) == 1 } { add log -r /*}</command>
+      <command>if {(%DEBUGMODE%) == 1 } {do debug.do}</command>
       <command>(%vsimRundo%)</command>
+    </localfile>
+    <localfile name="debug.do" expand="yes">
+      <command>(%vsimDebugdo%)</command>
     </localfile>
     <localfile name="postcov.do" expand="yes">
       <command>if {![string equal [coverage attribute -name TSTAT_REASON -concise] "Crashed"]} 
@@ -222,15 +226,15 @@
     </localfile>
 
     <execScript launch="exec">
-      <command>(%vsimPrecommand%)</command>
+      <command>(%testPrecommand%)</command>
        <!-- set empty ucdb coverage to crashed by default -->
       <command>vsim -c -do "coverage save -empty (%ucdbfile%);q -f"</command>
       <command>vsim -c -viewcov (%ucdbfile%) -do "set REASON Crashed;do precov.do;q -f"</command>
        <!-- run test -->
-      <command>vsim (%vsimoptions%) (%testoptions%) (%runmode%) (%SNAPSHOT%)</command>
+      <command>vsim (%vsimoptions%) (%testoptions%) (%RUNMODE%) (%SNAPSHOT%)</command>
        <!-- clear coverage if test ran and failed -->
       <command>vsim -c -viewcov (%ucdbfile%) -do "do postcov.do;q -f"</command>
-      <command>(%vsimPostcommand%)</command>
+      <command>(%testPostcommand%)</command>
     </execScript>
   </runnable>
 
@@ -346,7 +350,7 @@
        covercheck generate exclude (%TASKDIR%)/covercheck_exclude.do -prefix (%DUTPREFIX%);
        exit"
      </command>
-     <command>cp  (%TASKDIR%)/covercheck_exclude.do (%DATADIR%)/covercheck_exclude.do;</command>
+     <command>cp  (%TASKDIR%)/covercheck_exclude.do (%CoverageAutoExcludeFile%);</command>
     </execScript>
   </runnable>
      <!--previous command>qverify -c -od autocheck_db -do "do autocheck_directives.do;
