@@ -28,6 +28,7 @@
       <parameter name="CoverageAutoExcludeFile">(%DATADIR%)/covercheck_exclude.do</parameter>
       <parameter name="CoverageManualExcludeFile">TBD</parameter>
       <parameter name="faillog">(%regPrefix%)_failed_tests.log </parameter>
+      <parameter name="testfileformat">sheet</parameter>
     </parameters>
 
     <members>
@@ -83,7 +84,7 @@
       <parameter name="RUNMODE">-c</parameter>
       <parameter name="testfile">REQUIRED</parameter>
       <parameter name="testfile_tab">REQUIRED</parameter>
-      <parameter name="TESTCASES" type = "tcl">[ReadCalc (%testfile%) (%testfile_tab%)]</parameter>
+      <parameter name="TESTCASES" type = "tcl">[GetTestCases (%testfileformat%) (%testfile%) (%testfile_tab%)]</parameter>
     </parameters>
     <members>
       <member>Compile</member> 
@@ -416,7 +417,7 @@
    }
 
 <!-- COPY PASTE From FAQ Calc Sheet Test Definition -->
-
+<!--BEGIN  tcl code for spreadsheet parsing -->
    array set content {}
    array set testrecord {}
    set ::strNum 0
@@ -456,6 +457,9 @@
      }
    }
 
+<!--END  tcl code for spreadsheet parsing -->
+
+<!--BEGIN tcl code for creating tcl tests list from either spreadsheet or csv -->
    proc XmlReader {zipname filename} {
 
      global env auto_path
@@ -476,23 +480,51 @@
      $p configure -characterdatacommand Xmlcdata
      catch {$p parse $rawxml} msg
    }
-<!-- old xml reader not showing pending tests
-   proc XmlReader {zipname filename} {
 
-     package require xml
-     set hZip [zip open $zipname]
-     catch {zip set $hZip $filename} error
-     if {![string match $error ""]} {return}
-     set rawxml [zip read $hZip]
-     zip close $hZip
-     set p [::xml::parser]
-     $p configure -elementstartcommand Xmlestart
-     $p configure -elementendcommand Xmleend
-     $p configure -characterdatacommand Xmlcdata
-     catch {$p parse $rawxml} msg
-   }
+   proc CsvReader {filename} {
+   global tlistfile
 
--->
+    set tfile [open $filename r]
+ 
+   append tlistfile [format "{ Testname  } { Options  } { Repeat  } { Seeds  }"]  
+   while {![eof $tfile]} {
+    gets $tfile line
+    if {[string range $line 0 0] != "#"} {
+       if {[llength $line] != 0} {
+          if {[llength $line] == 1} {
+             set num 1
+             } else {
+             set num [lindex $line 2]
+             }
+         append tlistfile [format "\n"]
+         <!-- store test name -->
+         append tlistfile [format "{ %s  } " [lindex $line 0]]
+	 <!-- store options -->
+         append tlistfile [format "{ %s  } " [lindex $line 1]]
+	 <!-- store repeat count -->
+         append tlistfile [format "{ %s  } " [lindex $line 2]]
+	 <!-- store seeds -->
+         append tlistfile [format "{ "]
+         for {set repeat 3} {$repeat &lt; [expr $num + 3]} {incr repeat} {
+              if {[lindex $line $repeat] == ""} {
+              } else {
+                 if { [lindex $line $repeat] == "random"} {
+                 } else {
+                 append tlistfile [format "%s "  [lindex $line $repeat]]
+                 }
+              }
+         }
+         append tlistfile [format " } "]
+       }
+      }
+    }
+    close $tfile
+    echo $tlistfile
+    return $tlistfile  
+}
+<!--END tcl code for creating tcl tests list from either spreadsheet or csv -->
+
+<!--BEGIN tcl code invoked by Simulation runnable to extract tests to be ran -->
    proc ReadCalc {filename sheet} {
      global tlistfile sheetName
      set tlistfile ""
@@ -501,9 +533,30 @@
      if {[string match [file extension $filename] ".ods"]} {
        XmlReader $filename content.xml
      }
-     echo [format "## Note: Excel Read list output '%s' ##" $tlistfile]
-     return [GenerateTestList $tlistfile]
    }
+
+   proc ReadCsv {filename} {
+     global tlistfile
+     set tlistfile ""
+     echo [format "## Note: Reading from file '%s' ##" $filename]
+     CsvReader $filename
+   }
+
+proc GetTestCases {testfileformat testfile testfile_tab} {
+   global tlistfile 
+
+   echo Test File Format is $testfileformat
+   if {[string equal "csv" $testfileformat]} {
+      ReadCsv $testfile
+   } elseif {[string equal "sheet" $testfileformat]} {
+      ReadCalc $testfile $testfile_tab
+   } else {
+       echo Unsupported test file format ! fix it ! either csv or sheet is supported   
+       return -1
+   }
+   echo [format "## Note: Read list output  '%s' ##" $tlistfile]
+   return [GenerateTestList $tlistfile]
+ }
 
    proc GenerateTestList {testlist} {
       global testrecord
@@ -529,36 +582,7 @@
       global testrecord
       return [list $testrecord($test)]
    }
-
-    proc GetTestCases {file_name} {
-    set tclist ""
-    set tfile [open $file_name r]
-    while {![eof $tfile]} {
-    gets $tfile line
-    if {[string range $line 0 0] != "#"} {
-    if {[llength $line] != 0} {
-    if {[llength $line] == 1} {
-    set num 1
-    } else {
-    set num [lindex $line 1]
-    }
-    for {set repeat 2} {$repeat &lt; [expr $num + 2]} {incr repeat} {
-    if {[lindex $line $repeat] == ""} {
-    lappend tclist [format "%s.%s" [lindex $line 0] [GenRand [incr randCnt 1]]]
-    } else {
-    if { [lindex $line $repeat] == "random"} {
-    lappend tclist [format "%s.%s" [lindex $line 0] [GenRand [incr randCnt 1]]]
-    } else {
-    lappend tclist [format "%s.%s" [lindex $line 0] [lindex $line $repeat]]
-    }
-    }
-    }
-    }
-    }
-    }
-    close $tfile
-    return $tclist
-    }
+<!--END tcl code invoked by Simulation runnable to extract tests to be ran -->
 
    proc GetLinesOfCodeFromPath {path ext} {
     return [exec find $path -name "$ext" -print0 | xargs -0 cat | wc -l]
