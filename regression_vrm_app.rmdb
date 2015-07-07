@@ -28,6 +28,7 @@
       <parameter name="CoverageAutoExcludeFile">(%DATADIR%)/covercheck_exclude.do</parameter>
       <parameter name="CoverageManualExcludeFile">TBD</parameter>
       <parameter name="faillog">(%DATADIR%)/(%regPrefix%)_failed_tests.log </parameter>
+      <parameter name="seeddir">(%DATADIR%)/(%regPrefix%)_seedDir</parameter>
       <parameter name="testfileformat">sheet</parameter>
     </parameters>
 
@@ -37,6 +38,10 @@
       <member>Report</member>
       <member>Analyze</member> 
     </members>
+     <postScript launch="exec">
+      <!--remove seedDir to ensure we have new random seed for next regression run-->
+      <command>rm -rf (%seeddir%)</command>
+    </postScript>
   </runnable>
 
   <runnable name="Run" type="group" sequential="no" >
@@ -63,7 +68,6 @@
 
     <members>
       <member>Simulation</member> 
-      <member>RerunFailedTests</member>
     </members>
     <postScript launch="vsim">
       <!--relocate trend ucdb in data directory instead of default location which is hidden ER TO BE FILLED-->
@@ -84,13 +88,13 @@
       <parameter name="RUNMODE">-c</parameter>
       <parameter name="testfile">REQUIRED</parameter>
       <parameter name="testfile_tab">REQUIRED</parameter>
-      <parameter name="TESTCASES" type = "tcl">[GetTestCases (%testfileformat%) regression (%testfile%) (%testfile_tab%) (%mergefile%)]</parameter>
+      <parameter name="TESTCASES" type = "tcl">[GetTestCases (%testfileformat%) regression (%testfile%) (%testfile_tab%) (%mergefile%) (%seeddir%)]</parameter>
     </parameters>
     <members>
       <member>Compile</member> 
       <member>Simulate</member> 
     </members>
- </runnable>
+</runnable>
 
   <!-- RUNNABLE USED TO RUN RANKING PROCESS AND CREATE OPTIMIZED TESTFILE -->
   <runnable name="PostProcess" type="task">
@@ -125,6 +129,7 @@
       <command>source (%RMDBDIR%)/WriteSeeds.tcl</command>
       <command>ExtractSeedsFromRankingFile (%rankfile%) (%DATADIR%)/(%regPrefix%)_optimized_testfile</command>
       <command>vsim -c -viewcov (%mergefile%) -do ExcludeTrendMerge.do</command>
+      <command>echo [format "Created list fo failed tests to rerun on-demand \n: %s" (%TESTCASESFAILED%)]</command>
     </execScript>
   </runnable>
 
@@ -256,16 +261,6 @@
      <command>vcover report -trend -html -htmldir (%DATADIR%)/report/trend -verbose (%TIMESTAMP%)_trend_db/merged.data</command>
     </execScript>
   </runnable-->
-       <!-- ========================================================== -->
-       <!-- TOPLEVEL RUNNABLES RERUN -->
-       <!-- ========================================================== -->
-  
-  <runnable name="RerunFailedTests" type="task">
-    <execScript>
-     <command>TODO</command>
-    </execScript>
-  </runnable>
-
 
        <!-- ========================================================== -->
        <!-- TOPLEVEL RUNNABLES FORMAL -->
@@ -372,31 +367,29 @@
   <!-- parameters here within a usertcl element.     == -->
   <!-- ================================================ -->
   <usertcl name="default">
-<!-- genrand fix to fix GUI display issue -->
+<!-- genrand using a file to store seed o fix GUI display issue 
+     generating sed at parameter expansion at time 0 and during Simulate task -->
     proc GenRand { randCnt } {
-    if {![file exist SeedDir]} { file mkdir SeedDir }
-    if {[file exist [file join SeedDir $randCnt]]} {
-      set ifile [open [file join SeedDir $randCnt] "r"]
+    global seedDir
+
+    if {![file exist $seedDir]} { file mkdir  $seedDir }
+    if {[file exist [file join $seedDir $randCnt]]} {
+<!-- get seed from already generated iteration -->
+      set ifile [open [file join $seedDir $randCnt] "r"]
       set seed [lindex [read $ifile] 0]
       close $ifile
       return $seed
     } else {
+<!--  set new seed for not run yet iteration -->
       set maxFactor [expr 2147483647 + 1]
       set value [expr (int (rand() * ($maxFactor - 1))) % $maxFactor]
-      set ofile [open [file join SeedDir $randCnt] "w"]
+      set ofile [open [file join $seedDir $randCnt] "w"]
       puts $ofile $value
       close $ofile
       return $value
     }
    }
-<!-- oldGenRand with the issue of GUI displaying 2x tests
 
-   proc GenRand { } {
-    set maxFactor [expr 2147483647 + 1]
-    set value [expr (int (rand() * ($maxFactor - 1))) % $maxFactor]
-    return $value
-   }
--->    
     proc OkToMerge {userdata} {
     upvar $userdata data
     return 1 ;# passed and failed ...  OK to merge
@@ -542,8 +535,10 @@
      CsvReader $filename
    }
 
-proc GetTestCases {testfileformat testfilecat testfile testfile_tab mergefile} {
-   global tlistfile 
+proc GetTestCases {testfileformat testfilecat testfile testfile_tab mergefile seeddir} {
+   global tlistfile seedDir
+
+   set seedDir $seeddir
 
    echo Test File Format is $testfileformat
    echo Test File Category is $testfilecat
