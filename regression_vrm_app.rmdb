@@ -17,7 +17,7 @@
       <parameter name="tplanfile">TBD</parameter>
       <parameter name="tplanoptions">-format Excel -verbose</parameter>      
       <parameter name="mergeoptions" >-testassociated</parameter>
-      <parameter name="trendoptions" ></parameter>
+     <parameter name="trendoptions" ></parameter>
       <parameter name="triagefile">(%regPrefix%)_triage.tdb</parameter>
       <parameter name="triageoptions">-severity IFE -teststatus FEW -verbose</parameter>
       <parameter name="mergefileAll">(%DATADIR%)/logs/(%regPrefix%)_merge_all.ucdb</parameter>
@@ -162,7 +162,7 @@
       <parameter name="CompileCommand">REQUIRED</parameter>
    </parameters>
     <execScript launch="vsim">
-      <command>(%CompileCommand%)</command>
+     <command>(%CompileCommand%)</command>
       <!--command>cd (%VRUNDIR%)</command>
       <command>make cov=1 TB_ENV=UL SIMULATOR=questa -f Makefile.questa check clean .regression_opts comp_dut libs comp</command-->
     </execScript>
