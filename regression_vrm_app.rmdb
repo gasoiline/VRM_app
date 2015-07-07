@@ -27,7 +27,7 @@
       <parameter name="reportoptions">-html -details -source -code bcestxf -assert -cvg -htmldir (%DATADIR%)/report/coverage</parameter>
       <parameter name="CoverageAutoExcludeFile">(%DATADIR%)/covercheck_exclude.do</parameter>
       <parameter name="CoverageManualExcludeFile">TBD</parameter>
-      <parameter name="faillog">(%regPrefix%)_failed_tests.log </parameter>
+      <parameter name="faillog">(%DATADIR%)/(%regPrefix%)_failed_tests.log </parameter>
       <parameter name="testfileformat">sheet</parameter>
     </parameters>
 
@@ -84,19 +84,20 @@
       <parameter name="RUNMODE">-c</parameter>
       <parameter name="testfile">REQUIRED</parameter>
       <parameter name="testfile_tab">REQUIRED</parameter>
-      <parameter name="TESTCASES" type = "tcl">[GetTestCases (%testfileformat%) (%testfile%) (%testfile_tab%)]</parameter>
+      <parameter name="TESTCASES" type = "tcl">[GetTestCases (%testfileformat%) regression (%testfile%) (%testfile_tab%) (%mergefile%)]</parameter>
     </parameters>
     <members>
       <member>Compile</member> 
       <member>Simulate</member> 
     </members>
-  </runnable>
+ </runnable>
 
   <!-- RUNNABLE USED TO RUN RANKING PROCESS AND CREATE OPTIMIZED TESTFILE -->
   <runnable name="PostProcess" type="task">
     <parameters>
-      <parameter name="TBLinesOfCode" type = "tcl">[expr [GetLinesOfCodeFromPathlist (%PRJ_TB_SRC_ROOT%) *.sv] + [GetLinesOfCodeFromPathlist (%PRJ_TB_SRC_ROOT%) *.svh]]</parameter>
-      <parameter name="DUTLinesOfCode" type = "tcl">[GetLinesOfCodeFromFilelist (%PRJ_DUT_SRC_ROOT%)]</parameter>
+      <!--parameter name="TBLinesOfCode" type = "tcl">[expr [GetLinesOfCodeFromPathlist (%PRJ_TB_SRC_ROOT%) *.sv] + [GetLinesOfCodeFromPathlist (%PRJ_TB_SRC_ROOT%) *.svh]]</parameter>
+      <parameter name="DUTLinesOfCode" type = "tcl">[GetLinesOfCodeFromFilelist (%PRJ_DUT_SRC_ROOT%)]</parameter-->
+      <parameter name="TESTCASESFAILED" type = "tcl">[WriteFailedTestList (%faillog%) (%mergefile%)]</parameter>
     </parameters>
 
     <localfile name="ExcludeTrendMerge.do" expand="yes">
@@ -104,10 +105,8 @@
       <command>if {[file exists (%CoverageAutoExcludeFile%)]} {do (%CoverageAutoExcludeFile%);set AUTO_EXCLUSIONLinesOfCode [exec cat (%CoverageAutoExcludeFile%) | wc -l]} else {set AUTO_EXCLUSIONLinesOfCode 0};</command>
       <command>if {[file exists (%CoverageManualExcludeFile%)]} {do (%CoverageManualExcludeFile%);set MANUAL_EXCLUSIONLinesOfCode [exec cat (%CoverageManualExcludeFile%) | wc -l]} else {set MANUAL_EXCLUSIONLinesOfCode 0};</command>
       <command>#add trendable attributes such as # lines of code, number of contributing tests etc, total simulation time  ...</command>
-      <!--command>coverage attribute -ucdb -trendable -name TBLinesOfCode -value [exec find (%PRJ_TB_SRC_ROOT%) -name *.sv* -print0 | xargs -0 cat | wc -l];</command-->
-      <!--command>coverage attribute -ucdb -trendable -name DUTLinesOfCode -value [exec find (%PRJ_DUT_SRC_ROOT%) -name "*.v*" -print0 | xargs -0 cat | wc -l];</command-->
-      <command>coverage attribute -ucdb -trendable -name TBLinesOfCode -value (%TBLinesOfCode%);</command>
-      <command>coverage attribute -ucdb -trendable -name DUTLinesOfCode -value (%DUTLinesOfCode%);</command>
+      <!--command>coverage attribute -ucdb -trendable -name TBLinesOfCode -value (%TBLinesOfCode%);</command>
+      <command>coverage attribute -ucdb -trendable -name DUTLinesOfCode -value (%DUTLinesOfCode%);</command-->
       <command>coverage attribute -ucdb -trendable -name DUTRelease -value (%PRJ_DUT_VERSION%);</command>
       <command>coverage attribute -ucdb -trendable -name AUTO_EXCLUSIONLinesOfCode -value $AUTO_EXCLUSIONLinesOfCode;</command>
       <command>coverage attribute -ucdb -trendable -name MANUAL_EXCLUSIONLinesOfCode -value $MANUAL_EXCLUSIONLinesOfCode;</command>
@@ -257,16 +256,16 @@
      <command>vcover report -trend -html -htmldir (%DATADIR%)/report/trend -verbose (%TIMESTAMP%)_trend_db/merged.data</command>
     </execScript>
   </runnable-->
-
        <!-- ========================================================== -->
        <!-- TOPLEVEL RUNNABLES RERUN -->
        <!-- ========================================================== -->
   
   <runnable name="RerunFailedTests" type="task">
     <execScript>
-     <command>vcover report -trend -html -htmldir (%DATADIR%)/report/trend -verbose (%TIMESTAMP%)_trend_db/merged.data</command>
+     <command>TODO</command>
     </execScript>
   </runnable>
+
 
        <!-- ========================================================== -->
        <!-- TOPLEVEL RUNNABLES FORMAL -->
@@ -522,6 +521,7 @@
     echo $tlistfile
     return $tlistfile  
 }
+
 <!--END tcl code for creating tcl tests list from either spreadsheet or csv -->
 
 <!--BEGIN tcl code invoked by Simulation runnable to extract tests to be ran -->
@@ -542,27 +542,31 @@
      CsvReader $filename
    }
 
-proc GetTestCases {testfileformat testfile testfile_tab} {
+proc GetTestCases {testfileformat testfilecat testfile testfile_tab mergefile} {
    global tlistfile 
 
    echo Test File Format is $testfileformat
-   if {[string equal "csv" $testfileformat]} {
-      ReadCsv $testfile
-   } elseif {[string equal "sheet" $testfileformat]} {
-      ReadCalc $testfile $testfile_tab
-   } else {
-       echo Unsupported test file format ! fix it ! either csv or sheet is supported   
-       return -1
-   }
+   echo Test File Category is $testfilecat
+   if {[string equal "regression" $testfilecat]} {   
+      if {[string equal "csv" $testfileformat]} {
+         ReadCsv $testfile
+         } elseif {[string equal "sheet" $testfileformat]} {
+         ReadCalc $testfile $testfile_tab
+         } else {
+         echo Unsupported test file format ! fix it ! either csv or sheet is supported   
+         return -1
+         }
+      }
    echo [format "## Note: Read list output  '%s' ##" $tlistfile]
-   return [GenerateTestList $tlistfile]
+   return [GenerateTestList $tlistfile $testfilecat $mergefile]
  }
 
-   proc GenerateTestList {testlist} {
-      global testrecord
+   proc GenerateTestList {testlist testfilecat mergefile} {
+      global testrecord testrecordfailed
+      
       # Parse the test file and build a testlist in a TCL array
       foreach {testname opts count seeds} $testlist {
-         if {![string match [lindex $testname 0] "Testname"] &amp;&amp; ![string match [lindex $testname 0] "#"]} {
+         if {![string match [lindex $testname 0] "Testname"] &amp;&amp; ![string match #* [lindex $testname 0]]} {
            if {[string match [lindex $count 0] ""]} { set count 1}
            incr count
            for {set repeat 1} {$repeat &lt; $count} {incr repeat} {
@@ -571,17 +575,48 @@ proc GetTestCases {testfileformat testfile testfile_tab} {
              } else {
                set taskname [format "%s.%s" [lindex $testname 0] [lindex $seeds [expr $repeat - 1]]]
              }
-             set testrecord($taskname) $opts
-           }
+             if {[string equal "regression" $testfilecat]} {
+                set testrecord($taskname) $opts
+                } elseif {[string equal "failed" $testfilecat]} { 
+                         set teststatus [lindex [vcover attr -test uvm_test~$taskname -name TESTSTATUS -concise -tcl $mergefile] 0]
+                         <!-- store test failed if status is Error or Fatal -->
+                         if {$teststatus == 2 || $teststatus == 3} {
+                            set testrecordfailed($taskname) $opts
+                         }
+                }
+             }
          }
-      }
-      return [lsort [array names testrecord]]
+       }  
+      if {[string equal "regression" $testfilecat]} {   
+         return [lsort [array names testrecord]]
+         } elseif {[string equal "failed" $testfilecat]} { 
+         return [lsort [array names testrecordfailed]]
+         }
    }
 
    proc GetTestSettings {test} {
       global testrecord
       return [list $testrecord($test)]
    }
+
+   proc WriteFailedTestList {faillog mergefile} {
+     global testrecordfailed tlistfile
+  
+<!-- set testfile in csv format to write failed tests name/options/repeat=1/seed-->
+     set faillogcsv $faillog.csv
+     set outFile [open $faillogcsv a]
+     echo [format "Writing Failures into '%s'" $faillogcsv]
+     <!--Parse the test failed array and reconstrcut a csv file -->
+     foreach testname_seed [GenerateTestList $tlistfile "failed" $mergefile] {
+     set uvm_testname [lindex [split $testname_seed "."] 0]
+      set seed [lindex [split $testname_seed "."] 1]
+      set testoptions [format "%s +UVM_TESTNAME=%s" [lindex [GetTestSettings $testname_seed] 0] $uvm_testname]
+      echo [format "%s { %s } 1 %s" $uvm_testname $testoptions $seed]
+      puts $outFile [format "%s { %s } 1 %s" $uvm_testname $testoptions $seed]      
+       }
+     close $outFile
+}
+
 <!--END tcl code invoked by Simulation runnable to extract tests to be ran -->
 
    proc GetLinesOfCodeFromPath {path ext} {
