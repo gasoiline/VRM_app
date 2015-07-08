@@ -127,7 +127,7 @@
     <execScript launch="vsim">
       <command>vcover ranktest (%mergefile%) (%rankoptions%) -rankfile (%rankfile%)</command>
       <command>source (%RMDBDIR%)/WriteSeeds.tcl</command>
-      <command>ExtractSeedsFromRankingFile (%rankfile%) (%DATADIR%)/(%regPrefix%)_optimized_testfile</command>
+      <command>WriteOptimizedTestList (%rankfile%) (%DATADIR%)/(%regPrefix%)_optimized_testfile</command>
       <command>vsim -c -viewcov (%mergefile%) -do ExcludeTrendMerge.do</command>
       <command>echo [format "Created list fo failed tests to rerun on-demand \n: %s" (%TESTCASESFAILED%)]</command>
     </execScript>
@@ -187,7 +187,7 @@
   <!-- =================================================== -->
   <runnable name="uvm_test" type="task" base="test_base" foreach="(%TESTCASES%)" index="testcase">
     <parameters>
-<!-- TODO put the type here and change the testscase value depending on thaT-->
+<!-- TODO put the type here and change the testscase value depending on that-->
       <parameter name="testname">(%testcase%)</parameter>
       <parameter name="uvm_testname" type="tcl">[lindex [split (%testcase%) "."] 0]</parameter>
       <parameter name="seed" type="tcl">[lindex [split (%testcase%) "."] 1]</parameter>
@@ -207,11 +207,13 @@
       <parameter name="vsimDebugdo">add log -r /* -depth 4</parameter>
       <parameter name="testPostcommand"></parameter>
     </parameters>
-
+<!-- create default UCDB empty with minimal info -->
     <localfile name="precov.do" expand="yes">
-      <command>coverage attribute -name TESTNAME -value (%testname%);</command>
-      <command>coverage attribute -test (%testname%) -name TESTSTATUS -value 2;</command>
-      <command>coverage attribute -test (%testname%) -name TSTAT_REASON -value $REASON;</command>
+      <command>coverage attribute -name TESTNAME -value (%INSTANCE%);</command>
+      <command>coverage attribute -test (%INSTANCE%) -name TESTSTATUS -value 2;</command>
+      <command>coverage attribute -test (%INSTANCE%) -name TSTAT_REASON -value $REASON;</command>
+<!-- back annotate test options so we can build the optimized test list -->
+      <command>coverage attribute -test (%INSTANCE%) -name TESTOPTIONS -value &quot;(%testoptions%)&quot;;</command>
       <command>coverage attribute;</command>
       <command>coverage save (%ucdbfile%);</command>
     </localfile>
@@ -223,11 +225,15 @@
       <command>(%vsimDebugdo%)</command>
     </localfile>
     <localfile name="postcov.do" expand="yes">
-      <command>if {![string equal [coverage attribute -name TSTAT_REASON -concise] "Crashed"]} 
+      <!-- clear coverage if not passed -->
+     <command>if {![string equal [coverage attribute -name TSTAT_REASON -concise] "Crashed"]} 
 	{
- 	 if {[coverage attribute -name TESTSTATUS -concise]==2} {coverage clear;coverage save (%ucdbfile%);}
+ 	 if {[coverage attribute -name TESTSTATUS -concise] &gt; 1} {coverage clear;}
 	};</command>
-      <command>coverage attribute;</command>
+ <!-- back annotate test options so we can build the optimized test list -->
+     <command>coverage attribute -test (%INSTANCE%) -name TESTOPTIONS -value &quot;(%testoptions%)&quot;;</command>
+     <command>coverage attribute;</command>
+      <command>coverage save (%ucdbfile%);</command>
     </localfile>
 
     <execScript launch="exec">
