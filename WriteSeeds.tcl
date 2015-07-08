@@ -1,7 +1,7 @@
 # This procedure reads the output files from Questa's ranking report
 # and generates a file of testnames and seeds that achieve the highest
 # coverage
-proc ExtractSeedsFromRankingFile {INFILE OUTFILE} {
+proc WriteOptimizedTestList {INFILE OUTFILE} {
    set outFile [open $OUTFILE w]
    if {[file exist $INFILE]} {
      set inFile [open $INFILE r]
@@ -11,12 +11,14 @@ proc ExtractSeedsFromRankingFile {INFILE OUTFILE} {
        foreach record [lindex $line 2 13] {
          if {![info exist high]} {set high [lindex $record 7]}
          if { $high <= [lindex $record 7] }  {
-           set seed [lindex [vcover attribute -test [lindex [lindex [lindex $record 11] 0] 1] -name SEED $ucdbfile -tcl -concise] 0]
            set testname [lindex [vcover attribute -test [lindex [lindex [lindex $record 11] 0] 1] -name TESTNAME $ucdbfile -tcl -concise] 0]
-           # Extract the testname from the VRM name, i.e Simulate~testmode_random_1 becomes testmode
-           set testname [lindex [split [lindex [split $testname "~"] 1] "."] 0]
+           set testoptions [lindex [vcover attribute -test $testname -name TESTOPTIONS $ucdbfile -tcl -concise] 0]
+           echo $testoptions
+           set seed [lindex [vcover attribute -test $testname -name SEED $ucdbfile -tcl -concise] 0]
+           # Extract the testname from the VRM name, i.e uvm_test~testmode.<seed>becomes testmode
+           #set testname [lindex [split [lindex [split $testname "~"] 1] "."] 0]
            if {$seed != 0}  {
-             puts $outFile [format "%s 1 %s" $testname $seed]
+	       puts $outFile [format "%s %s 1 %s" $testname $testoptions $seed]
            }
          }
        }
