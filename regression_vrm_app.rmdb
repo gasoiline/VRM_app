@@ -4,7 +4,7 @@
   <!-- ========================================================== -->
   <!-- TOPLEVEL RUNNABLES -->
   <!-- ========================================================== -->
-  <runnable name="regression_flow" type="group" sequential="yes" >
+  <runnable name="RegressionFlow" type="group" sequential="yes" >
     <parameters>
       <parameter name="PRJ_TB_SRC_ROOT"></parameter>
       <parameter name="PRJ_DUT_SRC_ROOT"></parameter>
@@ -88,7 +88,8 @@
       <parameter name="RUNMODE">-c</parameter>
       <parameter name="testfile">REQUIRED</parameter>
       <parameter name="testfile_tab">REQUIRED</parameter>
-      <parameter name="TESTCASES" type = "tcl">[GetTestCases (%testfileformat%) regression (%testfile%) (%testfile_tab%) (%mergefile%) (%seeddir%)]</parameter>
+      <parameter name="TESTCASES_UVM" type = "tcl">[GetTestCases uvm (%testfileformat%) (%testfile%) (%testfile_tab%) (%mergefile%) (%seeddir%)]</parameter>
+      <parameter name="TESTCASES_DIRECTED" type = "tcl">[GetTestCases directed (%testfileformat%) (%testfile%) (%testfile_tab%) (%mergefile%) (%seeddir%)]</parameter>
     </parameters>
     <members>
       <member>Compile</member> 
@@ -172,6 +173,26 @@
     <parameters>
       <parameter name="SimulatePrecommand"></parameter>
     </parameters>
+    <members>
+      <member>UVMTests</member> 
+      <member>DirectedTests</member> 
+    </members>
+  </runnable>
+  <runnable name="DirectedTests" type="group">
+    <parameters>
+      <parameter name="SimulatePrecommand"></parameter>
+    </parameters>
+    <preScript launch="exec">
+      <command>(%SimulatePrecommand%)</command>
+    </preScript>
+    <members>
+      <member>directed_test</member> 
+    </members>
+  </runnable>
+  <runnable name="UVMTests" type="group">
+    <parameters>
+      <parameter name="SimulatePrecommand"></parameter>
+    </parameters>
     <preScript launch="exec">
       <command>(%SimulatePrecommand%)</command>
     </preScript>
@@ -180,18 +201,25 @@
     </members>
   </runnable>
 
-
   <!-- =================================================== -->
   <!-- == Leaf repeats for each testcase for the number == -->
   <!-- == of seeds defined within the testfile.         == -->
   <!-- =================================================== -->
-  <runnable name="uvm_test" type="task" base="test_base" foreach="(%TESTCASES%)" index="testcase">
+  <runnable name="uvm_test" type="task" base="test_base" foreach="(%TESTCASES_UVM%)" index="testcase">
     <parameters>
 <!-- TODO put the type here and change the testscase value depending on that-->
       <parameter name="testname">(%testcase%)</parameter>
       <parameter name="uvm_testname" type="tcl">[lindex [split (%testcase%) "."] 0]</parameter>
       <parameter name="seed" type="tcl">[lindex [split (%testcase%) "."] 1]</parameter>
-      <parameter name="testoptions" type="tcl">[lindex [GetTestSettings (%testcase%)] 0] +UVM_TESTNAME=(%uvm_testname%)</parameter>
+      <parameter name="testoptions" type="tcl">[lindex [GetTestSettings uvm (%testcase%)] 0] +UVM_TESTNAME=(%uvm_testname%)</parameter>
+    </parameters>
+  </runnable>
+  <runnable name="directed_test" type="task" base="test_base" foreach="(%TESTCASES_DIRECTED%)" index="testcase">
+    <parameters>
+<!-- TODO put the type here and change the testscase value depending on that-->
+      <parameter name="testname">(%testcase%)</parameter>
+      <parameter name="seed" type="tcl">[lindex [split (%testcase%) "."] 1]</parameter>
+      <parameter name="testoptions" type="tcl">[lindex [GetTestSettings directed (%testcase%)] 0]</parameter>
     </parameters>
   </runnable>
   
@@ -541,14 +569,17 @@
      CsvReader $filename
    }
 
-proc GetTestCases {testfileformat testfilecat testfile testfile_tab mergefile seeddir} {
+<!-- procedure to return the list of test to be run for a type of test (directed or uvm) -->
+proc GetTestCases {testtype testfileformat testfile testfile_tab mergefile seeddir} {
    global tlistfile seedDir
 
    set seedDir $seeddir
 
    echo Test File Format is $testfileformat
-   echo Test File Category is $testfilecat
-   if {[string equal "regression" $testfilecat]} {   
+   echo Test Category to be extracted is $testtype
+<!-- if it is a regression and not retrieving failed testcases
+     then we check the format and call the according extraction procedure -->
+   if {![string equal "failed" $testtype]} {   
       if {[string equal "csv" $testfileformat]} {
          ReadCsv $testfile
          } elseif {[string equal "sheet" $testfileformat]} {
@@ -558,65 +589,76 @@ proc GetTestCases {testfileformat testfilecat testfile testfile_tab mergefile se
          return -1
          }
       }
-   echo [format "## Note: Read list output  '%s' ##" $tlistfile]
-   return [GenerateTestList $tlistfile $testfilecat $mergefile]
+<!-- use the global tlistfile list to get the according list of $testtype -->
+<!--   echo [format "## Note: Read list output to extract from %s tests '%s' ##" $testtype $tlistfile]-->
+   return [GenerateTestList $testtype $tlistfile $mergefile]
+      
  }
 
-   proc GenerateTestList {testlist testfilecat mergefile} {
-      global testrecord testrecordfailed
-      
-      # Parse the test file and build a testlist in a TCL array
-      foreach {testname opts count seeds} $testlist {
-         if {![string match [lindex $testname 0] "Testname"] &amp;&amp; ![string match #* [lindex $testname 0]]} {
-           if {[string match [lindex $count 0] ""]} { set count 1}
-           incr count
-           for {set repeat 1} {$repeat &lt; $count} {incr repeat} {
-             if {[string match [lindex $seeds [expr $repeat - 1]] ""] || [string match [lindex $seeds [expr $repeat - 1]] "random"]} {
-               set taskname [format "%s.%s" [lindex $testname 0] [GenRand [incr randCnt 1]]]
-             } else {
-               set taskname [format "%s.%s" [lindex $testname 0] [lindex $seeds [expr $repeat - 1]]]
-             }
-             if {[string equal "regression" $testfilecat]} {
-                set testrecord($taskname) $opts
-                } elseif {[string equal "failed" $testfilecat]} { 
-                         set teststatus [lindex [vcover attr -test uvm_test~$taskname -name TESTSTATUS -concise -tcl $mergefile] 0]
-                         <!-- store test failed if status is Error or Fatal -->
-                         if {$teststatus == 2 || $teststatus == 3} {
-                            set testrecordfailed($taskname) $opts
-                         }
-                }
-             }
-         }
-       }  
-      if {[string equal "regression" $testfilecat]} {   
-         return [lsort [array names testrecord]]
-         } elseif {[string equal "failed" $testfilecat]} { 
-         return [lsort [array names testrecordfailed]]
-         }
-   }
-
-   proc GetTestSettings {test} {
-      global testrecord
-      return [list $testrecord($test)]
-   }
-
-   proc WriteFailedTestList {faillog mergefile} {
-     global testrecordfailed tlistfile
-  
+<!-- procedure to write out to a file all failed test from regression -->
+  proc WriteFailedTestList {faillog mergefile} {
+     global testrecord
 <!-- set testfile in csv format to write failed tests name/options/repeat=1/seed-->
      set faillogcsv $faillog.csv
      set outFile [open $faillogcsv a]
      echo [format "Writing Failures into '%s'" $faillogcsv]
-     <!--Parse the test failed array and reconstrcut a csv file -->
-     foreach testname_seed [GenerateTestList $tlistfile "failed" $mergefile] {
-     set uvm_testname [lindex [split $testname_seed "."] 0]
-      set seed [lindex [split $testname_seed "."] 1]
-      set testoptions [format "%s +UVM_TESTNAME=%s" [lindex [GetTestSettings $testname_seed] 0] $uvm_testname]
-      echo [format "%s { %s } 1 %s" $uvm_testname $testoptions $seed]
-      puts $outFile [format "%s { %s } 1 %s" $uvm_testname $testoptions $seed]      
+<!--     echo [format "## Note: Test Record is '%s' ##" [lsort [array names testrecord]]]-->
+     <!--Parse all tests and detect if they are failed -->
+     foreach test [lsort [array names testrecord]] {
+      set testtype [lindex [split $test ","] 0]
+      set testname_seed [lindex [split $test ","] 1]
+      set teststatus [lindex [vcover attr -test [format "%s_test~%s" [lindex $testtype 0] $testname_seed] -name TESTSTATUS -concise -tcl $mergefile] 0]
+      echo [format "%s %s %s" $testname_seed $testtype $teststatus]
+       <!-- store test if status is Error or Fatal -->
+      if {$teststatus == 2 || $teststatus == 3} {
+         set uvm_testname [lindex [split $testname_seed "."] 0]
+         set testoptions [lindex [GetTestSettings $testtype $testname_seed] 0]
+         set seed [lindex [split $testname_seed "."] 1]
+         echo [format "%s { %s } 1 %s %s" $uvm_testname $testoptions $seed $testtype]
+         puts $outFile [format "%s { %s } 1 %s %s" $uvm_testname $testoptions $seed $testtype]
        }
+     }
      close $outFile
 }
+
+   proc GenerateTestList {testtype testlist mergefile} {
+     global testrecord
+     array set testrecord_return {}
+      
+      # Parse the test file and build a testlist in a TCL array
+      echo [format "## Note: Extract Test List for %s with testlist entry  '%s' ##" $testtype $testlist]
+      foreach {testname opts count seeds type} $testlist {
+<!-- store only tests with type = $testtype passed as an argument -->
+         if { [string equal [lindex $type 0] $testtype]} {
+           if {![string match [lindex $testname 0] "Testname"] &amp;&amp; ![string match #* [lindex $testname 0]]} {
+             if {[string match [lindex $count 0] ""]} { set count 1}
+             incr count
+             for {set repeat 1} {$repeat &lt; $count} {incr repeat} {
+               if {[string match [lindex $seeds [expr $repeat - 1]] ""] || [string match [lindex $seeds [expr $repeat - 1]] "random"]} {
+                 set taskname [format "%s.%s" [lindex $testname 0] [GenRand [incr randCnt 1]]]
+               } else {
+                 set taskname [format "%s.%s" [lindex $testname 0] [lindex $seeds [expr $repeat - 1]]]
+               }
+	       <!-- store test in array -->
+               set testrecord($testtype,$taskname) $opts                   
+               }
+               }
+              }
+            }
+<!--      echo [format "## Note: Updated Test Record for %s is '%s' ##" $testtype [lsort [array names testrecord $testtype*]]]-->
+      foreach test [lsort [array names testrecord $testtype*]] {
+<!-- reconstruct test record without testype prefix to return the testname.seed lonly -->
+<!--      echo [format "## Note: Reconstruct Test Record from %s to %s ##" $test [lindex [split $test ","] 1]]-->
+	       set testrecord_return([lindex [split $test ","] 1]) testrecord($test)
+	       }
+      echo [format "## Note: Extracted Test Record for %s is '%s' ##" $testtype [lsort [array names testrecord_return]]]
+      return [lsort [array names testrecord_return]]
+   }
+
+   proc GetTestSettings {testtype test} {
+      global testrecord
+      return [list $testrecord($testtype,$test)]
+   }
 
 <!--END tcl code invoked by Simulation runnable to extract tests to be ran -->
 
