@@ -512,7 +512,7 @@
 
     set tfile [open $filename r]
  
-   append tlistfile [format "{ Testname  } { Options  } { Repeat  } { Seeds  }"]  
+   append tlistfile [format "{ Testname  } { Type  } { Options  } { Repeat  } { Seeds  }"]  
    while {![eof $tfile]} {
     gets $tfile line
     if {[string range $line 0 0] != "#"} {
@@ -520,18 +520,20 @@
           if {[llength $line] == 1} {
              set num 1
              } else {
-             set num [lindex $line 2]
+             set num [lindex $line 3]
              }
          append tlistfile [format "\n"]
          <!-- store test name -->
          append tlistfile [format "{ %s  } " [lindex $line 0]]
-	 <!-- store options -->
+         <!-- store test type -->
          append tlistfile [format "{ %s  } " [lindex $line 1]]
-	 <!-- store repeat count -->
+	 <!-- store options -->
          append tlistfile [format "{ %s  } " [lindex $line 2]]
+	 <!-- store repeat count -->
+         append tlistfile [format "{ %s  } " [lindex $line 3]]
 	 <!-- store seeds -->
          append tlistfile [format "{ "]
-         for {set repeat 3} {$repeat &lt; [expr $num + 3]} {incr repeat} {
+         for {set repeat 4} {$repeat &lt; [expr $num + 4]} {incr repeat} {
               if {[lindex $line $repeat] == ""} {
               } else {
                  if { [lindex $line $repeat] == "random"} {
@@ -614,8 +616,8 @@ proc GetTestCases {testtype testfileformat testfile testfile_tab mergefile seedd
          set uvm_testname [lindex [split $testname_seed "."] 0]
          set testoptions [lindex [GetTestSettings $testtype $testname_seed] 0]
          set seed [lindex [split $testname_seed "."] 1]
-         echo [format "%s { %s } 1 %s %s" $uvm_testname $testoptions $seed $testtype]
-         puts $outFile [format "%s { %s } 1 %s %s" $uvm_testname $testoptions $seed $testtype]
+         echo [format "%s %s { %s } 1 %s " $uvm_testname $testtype $testoptions $seed ]
+         puts $outFile [format "%s %s { %s } 1 %s " $uvm_testname $testtype $testoptions $seed]
        }
      }
      close $outFile
@@ -627,7 +629,7 @@ proc GetTestCases {testtype testfileformat testfile testfile_tab mergefile seedd
       
       # Parse the test file and build a testlist in a TCL array
       echo [format "## Note: Extract Test List for %s with testlist entry  '%s' ##" $testtype $testlist]
-      foreach {testname opts count seeds type} $testlist {
+      foreach {testname type opts count seeds} $testlist {
 <!-- store only tests with type = $testtype passed as an argument -->
          if { [string equal [lindex $type 0] $testtype]} {
            if {![string match [lindex $testname 0] "Testname"] &amp;&amp; ![string match #* [lindex $testname 0]]} {
