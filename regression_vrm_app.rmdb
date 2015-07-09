@@ -178,7 +178,7 @@
       <member>DirectedTests</member> 
     </members>
   </runnable>
-  <runnable name="DirectedTests" type="group">
+  <runnable name="DirectedTests" type="group" unless="[string equal &quot;(%TESTCASES_DIRECTED%)&quot; &quot;&quot;]">
     <parameters>
       <parameter name="SimulatePrecommand"></parameter>
     </parameters>
@@ -189,7 +189,7 @@
       <member>directed_test</member> 
     </members>
   </runnable>
-  <runnable name="UVMTests" type="group">
+  <runnable name="UVMTests" type="group" unless="[string equal &quot;(%TESTCASES_UVM%)&quot; &quot;&quot;]">
     <parameters>
       <parameter name="SimulatePrecommand"></parameter>
     </parameters>
