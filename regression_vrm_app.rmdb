@@ -233,7 +233,7 @@
       <parameter name="vsimoptions"> -modelsimini (%MODELSIMINI%) -do "run.do" -wlf (%INSTANCE%).wlf -l (%INSTANCE%).log -title (%INSTANCE%) -sv_seed (%seed%) (%UCDBFILTER%) -cvgprecollect (%mergefile%)</parameter>
 
       <parameter name="testPrecommand"></parameter>
-      <parameter name="vsimRundo">if { (%COVERAGEMODE%) == 0 || (%PROFILEMODE%) == 1 || (%DEBUGMODE%) == 1 } {} else {coverage save -cvg -codeAll -assert -onexit (%ucdbfile%)};run -a;q -f</parameter>
+      <parameter name="vsimRundo">coverage save -cvg -codeAll -assert -onexit (%ucdbfile%);run -a;q -f</parameter>
       <parameter name="vsimDebugdo">add log -r /* -depth 4</parameter>
       <parameter name="vsimProfiledo">profile on -assertions -classes -cvg -qdas -solver;profile save -onexit (%INSTANCE%).pdb</parameter>
       <parameter name="testPostcommand"></parameter>
@@ -270,21 +270,16 @@
      <command>coverage attribute;</command>
       <command>coverage save (%ucdbfile%);</command>
     </localfile>
-    <execScript>
+
+    <execScript launch="exec">
       <command>(%testPrecommand%)</command>
        <!-- set empty ucdb coverage to crashed by default -->
-      <command>coverage save -empty (%ucdbfile%)</command>
-      <command>if { (%COVERAGEMODE%) == 0 || (%PROFILEMODE%) == 1 || (%DEBUGMODE%) == 1 } {</command>
-      <command>echo "coverage disabled" } else {</command>
+      <command>vsim -c -do "coverage save -empty (%ucdbfile%);q -f"</command>
       <command>vsim -c -viewcov (%ucdbfile%) -do "set REASON Crashed;do precov.do;q -f"</command>
-      <command>}</command>
        <!-- run test -->
       <command>vsim (%vsimoptions%) (%testoptions%) (%RUNMODE%) (%SNAPSHOT%)</command>
        <!-- clear coverage if test ran and failed -->
-      <command>if { (%COVERAGEMODE%) == 0 || (%PROFILEMODE%) == 1 || (%DEBUGMODE%) == 1 } {</command>
-      <command>echo "coverage disabled" } else {</command>
       <command>vsim -c -viewcov (%ucdbfile%) -do "do postcov.do;q -f"</command>
-      <command>}</command>
       <command>(%testPostcommand%)</command>
     </execScript>
   </runnable>
