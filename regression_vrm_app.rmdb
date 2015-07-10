@@ -12,7 +12,11 @@
       <parameter name="TIMESTAMP" type="tcl">[exec date +%y%m%d_%H%M%S]</parameter>
       <parameter name="MODELSIMINI" type = "tcl">(%VRUNDIR%)/modelsim.ini</parameter>
       <parameter name="regPrefix">reg</parameter>
-      <!-- RMDB parameters for automation of coverage collection -->
+      <!-- RMDB parameters for coverage, debug and profiling mode -->
+      <parameter name="COVERAGEMODE">1</parameter>
+      <parameter name="DEBUGMODE">0</parameter>
+      <parameter name="PROFILEMODE">0</parameter>
+      <!-- RMDB parameters for automation of coverage collection -->      
       <parameter name="mergefile" export="yes">(%regPrefix%)_merge.ucdb</parameter>
       <parameter name="tplanfile">TBD</parameter>
       <parameter name="tplanoptions">-format Excel -verbose</parameter>      
@@ -54,7 +58,7 @@
     <postScript launch="vsim">
       <!--merge back TP in case of -du used fin mergeoptions -->
       <!-- TODO improve merge command by extracting mergeoptions trimmed with -du optiuons -->
-      <command>if {[ string match *-du* "(%mergeoptions%)" ]} {set index [string last / "(%tplanfile%)"];echo $index;set tplan [string range (%tplanfile%) [expr $index+1] [string length (%tplanfile%)]];echo $tplan;vcover merge -testassociated -out (%mergefile%) (%mergefile%) [string map {".ucdb" "" } (%mergefile%)]_[string map {xml ucdb} $tplan];};</command>
+      <command>if { (%COVERAGEMODE%) == 0 || (%PROFILEMODE%) == 1 || (%DEBUGMODE%) == 1 } {} else { if {[ string match *-du* "(%mergeoptions%)" ]} {set index [string last / "(%tplanfile%)"];echo $index;set tplan [string range (%tplanfile%) [expr $index+1] [string length (%tplanfile%)]];echo $tplan;vcover merge -testassociated -out (%mergefile%) (%mergefile%) [string map {".ucdb" "" } (%mergefile%)]_[string map {xml ucdb} $tplan];};}</command>
     </postScript>
 
   </runnable>
@@ -81,16 +85,13 @@
 
   <runnable name="Simulation" type="group" sequential="yes" >
     <parameters>
-      <!-- RMDB parameters for automatic rerun and profiling -->
-      <parameter name="DEBUGMODE">0</parameter>
-      <parameter name="PROFILEMODE">0</parameter>
       <!-- USER parameters for global simualtion mode and test to be ran -->
       <parameter name="SNAPSHOT" >REQUIRED</parameter>
       <parameter name="RUNMODE">-c</parameter>
       <parameter name="testfile">REQUIRED</parameter>
       <parameter name="testfile_tab">REQUIRED</parameter>
-      <parameter name="TESTCASES_UVM" type = "tcl">[GetTestCases uvm (%testfileformat%) (%testfile%) (%testfile_tab%) (%mergefile%) (%seeddir%)]</parameter>
-      <parameter name="TESTCASES_DIRECTED" type = "tcl">[GetTestCases directed (%testfileformat%) (%testfile%) (%testfile_tab%) (%mergefile%) (%seeddir%)]</parameter>
+      <parameter name="TESTCASES_UVM" type = "tcl">[GetTestCases uvm (%testfileformat%) (%testfile%) (%testfile_tab%) (%seeddir%)]</parameter>
+      <parameter name="TESTCASES_DIRECTED" type = "tcl">[GetTestCases directed (%testfileformat%) (%testfile%) (%testfile_tab%) (%seeddir%)]</parameter>
     </parameters>
     <members>
       <member>Compile</member> 
@@ -99,7 +100,7 @@
 </runnable>
 
   <!-- RUNNABLE USED TO RUN RANKING PROCESS AND CREATE OPTIMIZED TESTFILE -->
-  <runnable name="PostProcess" type="task">
+  <runnable name="PostProcess" type="task" unless="[string equal &quot;(%COVERAGEMODE%)&quot; &quot;0&quot;] || [string equal &quot;(%DEBUGMODE%)&quot; &quot;1&quot;] || [string equal &quot;(%PROFILEMODE%)&quot; &quot;1&quot;]">
     <parameters>
       <!--parameter name="TBLinesOfCode" type = "tcl">[expr [GetLinesOfCodeFromPathlist (%PRJ_TB_SRC_ROOT%) *.sv] + [GetLinesOfCodeFromPathlist (%PRJ_TB_SRC_ROOT%) *.svh]]</parameter>
       <parameter name="DUTLinesOfCode" type = "tcl">[GetLinesOfCodeFromFilelist (%PRJ_DUT_SRC_ROOT%)]</parameter-->
@@ -136,7 +137,7 @@
   </runnable>
 
   <!-- RUNNABLE USED TO REPORT COVERAGE RESULTS -->
-  <runnable name="Report" type="task">
+  <runnable name="Report" type="task" unless="[string equal &quot;(%COVERAGEMODE%)&quot; &quot;0&quot;] || [string equal &quot;(%DEBUGMODE%)&quot; &quot;1&quot;] || [string equal &quot;(%PROFILEMODE%)&quot; &quot;1&quot;]">
     <localfile name="report.do" expand="yes">
       <command>#generate coverage report</command>
       <!--command>vcover report -html -details -source -code bcestxf -assert -cvg -htmldir (%DATADIR%)/report/coverage (%mergefile%) &gt;&amp; /dev/null;</command-->
@@ -432,7 +433,13 @@
 
     proc OkToMerge {userdata} {
     upvar $userdata data
+ 
+    if { [ExpandRmdbParameters $data(ACTION) (%COVERAGEMODE%)] == 0 || [ExpandRmdbParameters $data(ACTION) (%PROFILEMODE%)] == 1 || [ExpandRmdbParameters $data(ACTION) (%DEBUGMODE%)] == 1 } {
+       echo NOTE !  Merge+PostProcess+Report are skipped because COVERAGEMODE = 0 || PROFILEMODE = 1 || DEBUGMODE = 1
+       return 0
+       } else {
     return 1 ;# passed and failed ...  OK to merge
+       }
     }
 
   proc GetUcdbAttribute {ucdbfile attribute} {
@@ -578,7 +585,7 @@
    }
 
 <!-- procedure to return the list of test to be run for a type of test (directed or uvm) -->
-proc GetTestCases {testtype testfileformat testfile testfile_tab mergefile seeddir} {
+proc GetTestCases {testtype testfileformat testfile testfile_tab seeddir} {
    global tlistfile seedDir
 
    set seedDir $seeddir
@@ -599,7 +606,7 @@ proc GetTestCases {testtype testfileformat testfile testfile_tab mergefile seedd
       }
 <!-- use the global tlistfile list to get the according list of $testtype -->
 <!--   echo [format "## Note: Read list output to extract from %s tests '%s' ##" $testtype $tlistfile]-->
-   return [GenerateTestList $testtype $tlistfile $mergefile]
+   return [GenerateTestList $testtype $tlistfile]
       
  }
 
@@ -629,7 +636,7 @@ proc GetTestCases {testtype testfileformat testfile testfile_tab mergefile seedd
      close $outFile
 }
 
-   proc GenerateTestList {testtype testlist mergefile} {
+   proc GenerateTestList {testtype testlist} {
      global testrecord
      array set testrecord_return {}
       
