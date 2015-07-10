@@ -81,8 +81,9 @@
 
   <runnable name="Simulation" type="group" sequential="yes" >
     <parameters>
-      <!-- RMDB parameters for automatic rerun -->
+      <!-- RMDB parameters for automatic rerun and profiling -->
       <parameter name="DEBUGMODE">0</parameter>
+      <parameter name="PROFILEMODE">0</parameter>
       <!-- USER parameters for global simualtion mode and test to be ran -->
       <parameter name="SNAPSHOT" >REQUIRED</parameter>
       <parameter name="RUNMODE">-c</parameter>
@@ -233,6 +234,7 @@
       <parameter name="testPrecommand"></parameter>
       <parameter name="vsimRundo">coverage save -cvg -codeAll -assert -onexit (%ucdbfile%);run -a;q -f</parameter>
       <parameter name="vsimDebugdo">add log -r /* -depth 4</parameter>
+      <parameter name="vsimProfiledo">profile on -assertions -classes -cvg -qdas -solver;profile save -onexit (%INSTANCE%).pdb</parameter>
       <parameter name="testPostcommand"></parameter>
     </parameters>
 <!-- create default UCDB empty with minimal info -->
@@ -247,10 +249,14 @@
     </localfile>
     <localfile name="run.do" expand="yes">
       <command>if {(%DEBUGMODE%) == 1 } {do debug.do}</command>
+      <command>if {(%PROFILEMODE%) == 1 } {do profile.do}</command>
       <command>(%vsimRundo%)</command>
     </localfile>
     <localfile name="debug.do" expand="yes">
       <command>(%vsimDebugdo%)</command>
+    </localfile>
+    <localfile name="profile.do" expand="yes">
+      <command>(%vsimProfiledo%)</command>
     </localfile>
     <localfile name="postcov.do" expand="yes">
       <!-- clear coverage if not passed -->
