@@ -240,6 +240,7 @@
     </parameters>
 <!-- create default UCDB empty with minimal info -->
     <localfile name="precov.do" expand="yes">
+      <command>if { (%COVERAGEMODE%) == 0 || (%PROFILEMODE%) == 1 || (%DEBUGMODE%) == 1 } {} else {</command>
       <command>coverage attribute -name TESTNAME -value (%INSTANCE%);</command>
       <command>coverage attribute -test (%INSTANCE%) -name TESTSTATUS -value 2;</command>
       <command>coverage attribute -test (%INSTANCE%) -name TSTAT_REASON -value $REASON;</command>
@@ -247,6 +248,7 @@
       <command>coverage attribute -test (%INSTANCE%) -name TESTOPTIONS -value &quot;(%testoptions%)&quot;;</command>
       <command>coverage attribute;</command>
       <command>coverage save (%ucdbfile%);</command>
+      <command>}</command>
     </localfile>
     <localfile name="run.do" expand="yes">
       <command>if {(%DEBUGMODE%) == 1 } {do debug.do}</command>
@@ -260,6 +262,7 @@
       <command>(%vsimProfiledo%)</command>
     </localfile>
     <localfile name="postcov.do" expand="yes">
+      <command>if { (%COVERAGEMODE%) == 0 || (%PROFILEMODE%) == 1 || (%DEBUGMODE%) == 1 } {} else {</command>
       <!-- clear coverage if not passed -->
      <command>if {![string equal [coverage attribute -name TSTAT_REASON -concise] "Crashed"]} 
 	{
@@ -269,6 +272,7 @@
      <command>coverage attribute -test (%INSTANCE%) -name TESTOPTIONS -value &quot;(%testoptions%)&quot;;</command>
      <command>coverage attribute;</command>
       <command>coverage save (%ucdbfile%);</command>
+      <command>}</command>
     </localfile>
 
     <execScript launch="exec">
