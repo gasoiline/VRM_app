@@ -45,6 +45,7 @@
      <postScript launch="exec">
       <!--remove seedDir to ensure we have new random seed for next regression run-->
       <command>rm -rf (%seeddir%)</command>
+      <command>vsim -c  -do "source (%RMDBDIR%)/feature.tcl ; AddFeatures /testplan (%mergefile%) (%mergefile%) ; quit -f"</command>
     </postScript>
   </runnable>
 
