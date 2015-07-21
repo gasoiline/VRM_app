@@ -57,9 +57,10 @@ proc plan {path} {
   }
   foreach section $SECTIONS {
     echo $FEATURES($section) $COVERED($section) [regexp -all {/} $section] $section $COVERAGE($section)
-    coverage attribute -path $section -name Features -value $FEATURES($section)
-    coverage attribute -path $section -name "Features Covered" -value $COVERED($section)
-    coverage attribute -path $section -name "%Features Covered" -value [format "%3.2f%%" [expr ($COVERED($section) / ($FEATURES($section)* 1.0)) * 100.0]]
+#TODO Report Questa tracker bug to display column names with space in it, for now replace space with _
+    coverage attribute -path $section -name "Features" -value $FEATURES($section)
+      coverage attribute -path $section -name "Features_Covered" -value $COVERED($section)
+    coverage attribute -path $section -name "%Features_Covered" -value [format "%3.2f%%" [expr ($COVERED($section) / ($FEATURES($section)* 1.0)) * 100.0]]
   }
 }
 
