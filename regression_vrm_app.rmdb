@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<rmdb version="1.0" loadtcl="default" toprunnables="regression_flow" xmlns:xi="http://www.w3.org/2003/XInclude">
+<rmdb version="1.0" loadtcl="default" toprunnables="RegressionFlow" xmlns:xi="http://www.w3.org/2003/XInclude">
   
   <!-- ========================================================== -->
   <!-- TOPLEVEL RUNNABLES -->
