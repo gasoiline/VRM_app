@@ -4,32 +4,32 @@
   <!-- ========================================================== -->
   <!-- TOPLEVEL RUNNABLES -->
   <!-- ========================================================== -->
-  <runnable name="RegressionFlow" type="group" sequential="yes" >
+  <runnable name="RegressionFlow" type="group" sequential="yes">
     <parameters>
-      <parameter name="PRJ_TB_SRC_ROOT"></parameter>
+      <parameter name="PRJ_TB_SRC_ROOT" ></parameter>
       <parameter name="PRJ_DUT_SRC_ROOT"></parameter>
       <parameter name="PRJ_DUT_VERSION" export="yes"></parameter>
-      <parameter name="TIMESTAMP" type="tcl">[exec date +%y%m%d_%H%M%S]</parameter>
-      <parameter name="MODELSIMINI" type = "tcl">(%VRUNDIR%)/modelsim.ini</parameter>
+      <parameter name="TIMESTAMP"   type="tcl">[exec date +%y%m%d_%H%M%S]</parameter>
+      <parameter name="MODELSIMINI" type="tcl">(%VRUNDIR%)/modelsim.ini</parameter>
       <parameter name="regPrefix">reg</parameter>
       <!-- RMDB parameters for coverage, debug and profiling mode -->
       <parameter name="COVERAGEMODE">1</parameter>
-      <parameter name="DEBUGMODE">0</parameter>
-      <parameter name="PROFILEMODE">0</parameter>
+      <parameter name="DEBUGMODE"   >0</parameter>
+      <parameter name="PROFILEMODE" >0</parameter>
       <!-- RMDB parameters for automation of coverage collection -->      
       <parameter name="mergefile" export="yes">(%regPrefix%)_merge.ucdb</parameter>
-      <parameter name="tplanfile">TBD</parameter>
-      <parameter name="tplanoptions">-format Excel -verbose</parameter>      
+      <parameter name="tplanfile"    >TBD</parameter>
+      <parameter name="tplanoptions" >-format Excel -verbose</parameter>      
       <parameter name="mergeoptions" >-testassociated</parameter>
       <parameter name="trendoptions" ></parameter>
-      <parameter name="triagefile">(%regPrefix%)_triage.tdb</parameter>
+      <parameter name="triagefile"   >(%regPrefix%)_triage.tdb</parameter>
       <parameter name="triageoptions">-severity IFE -teststatus FEW -verbose</parameter>
-      <parameter name="mergefileAll">(%DATADIR%)/logs/(%regPrefix%)_merge_all.ucdb</parameter>
-      <parameter name="rankfile">(%DATADIR%)/(%regPrefix%).rank</parameter>
-      <parameter name="rankoptions">-fewest -log (%rankfile%).log</parameter>
-      <parameter name="trendfile" >(%DATADIR%)/logs/(%regPrefix%)_trend.ucdb</parameter>
+      <parameter name="mergefileAll" >(%DATADIR%)/logs/(%regPrefix%)_merge_all.ucdb</parameter>
+      <parameter name="rankfile"     >(%DATADIR%)/(%regPrefix%).rank</parameter>
+      <parameter name="rankoptions"  >-fewest -log (%rankfile%).log</parameter>
+      <parameter name="trendfile"    >(%DATADIR%)/logs/(%regPrefix%)_trend.ucdb</parameter>
       <parameter name="reportoptions">-html -details -source -code bcestxf -assert -cvg -htmldir (%DATADIR%)/report/coverage</parameter>
-      <parameter name="CoverageAutoExcludeFile">(%DATADIR%)/covercheck_exclude.do</parameter>
+      <parameter name="CoverageAutoExcludeFile"  >(%DATADIR%)/covercheck_exclude.do</parameter>
       <parameter name="CoverageManualExcludeFile">TBD</parameter>
       <parameter name="faillog">(%DATADIR%)/(%regPrefix%)_failed_tests.log </parameter>
       <parameter name="seeddir">(%DATADIR%)/(%regPrefix%)_seedDir</parameter>
@@ -44,40 +44,52 @@
     </members>
      <postScript launch="exec">
       <!--remove seedDir to ensure we have new random seed for next regression run-->
-      <command>rm -rf (%seeddir%)</command>
+      <command>file delete -force -- (%seeddir%)</command>
       <!--add 3 Features oriented specific metrics to testplan attributes -->
       <command>vsim -c  -do "source (%RMDBDIR%)/feature.tcl ; AddFeatures /testplan (%mergefile%) (%mergefile%) ; quit -f"</command>
     </postScript>
   </runnable>
 
-  <runnable name="Run" type="group" sequential="no" >
+  <runnable name="Run" type="group" sequential="no">
     <parameters>
     </parameters>
     <members>
       <member>Dynamic</member> 
       <member>Formal</member> 
     </members>
-    <postScript launch="vsim">
+    <postScript launch="exec">
       <!--merge back TP in case of -du used fin mergeoptions -->
       <!-- TODO improve merge command by extracting mergeoptions trimmed with -du optiuons -->
-      <command>if { (%COVERAGEMODE%) == 0 || (%PROFILEMODE%) == 1 || (%DEBUGMODE%) == 1 } {} else { if {[ string match *-du* "(%mergeoptions%)" ]} {set index [string last / "(%tplanfile%)"];echo $index;set tplan [string range (%tplanfile%) [expr $index+1] [string length (%tplanfile%)]];echo $tplan;vcover merge -testassociated -out (%mergefile%) (%mergefile%) [string map {".ucdb" "" } (%mergefile%)]_[string map {xml ucdb} $tplan];};}</command>
+      <command>if { (%COVERAGEMODE%) == 0 || (%PROFILEMODE%) == 1 || (%DEBUGMODE%) == 1 } {</command>
+      <command>} else { </command>
+      <command>  if {[string match *-du* "(%mergeoptions%)" ]} {</command>
+      <command>    set index [string last / "(%tplanfile%)"]
+      <command>    echo $index;set tplan [string range (%tplanfile%) [expr $index+1] [string length (%tplanfile%)]]</command>
+      <command>    echo $tplan</command>
+      <command>    vcover merge -testassociated -out (%mergefile%) (%mergefile%) [string map {".ucdb" "" } (%mergefile%)]_[string map {xml ucdb} $tplan]</command>
+      <command>  }</command>
+      <command>}</command>
     </postScript>
 
   </runnable>
 
-  <runnable name="Dynamic" type="group" sequential="yes" >
+  <runnable name="Dynamic" type="group" sequential="yes">
     <parameters>
     </parameters>
     <preScript launch="vsim">
-      <command>if {[file exists (%mergefile%)]} {mv (%mergefile%) tmp.ucdb;vcover remove -out (%mergefile%) tmp.ucdb -tplan;rm tmp.ucdb};</command>
+      <command>if {[file exists (%mergefile%)]} {</command>
+      <command>  file rename (%mergefile%) tmp.ucdb</command>
+      <command>  vcover remove -tplan -out (%mergefile%) tmp.ucdb</command>
+      <command>  file delete tmp.ucdb</command>
+      <command>}</command>
     </preScript>
 
     <members>
       <member>Simulation</member> 
     </members>
-    <postScript launch="vsim">
+    <postScript launch="exec">
       <!--relocate trend ucdb in data directory instead of default location which is hidden ER TO BE FILLED-->
-      <command>if {[file exists (%trendfile%)]} {cp (%trendfile%) (%DATADIR%)/.;};</command>
+      <command>if {[file exists (%trendfile%)]} {cp (%trendfile%) (%DATADIR%)/.}</command>
     </postScript>
   </runnable>
 
@@ -85,15 +97,15 @@
   <!-- TOPLEVEL RUNNABLES DYNAMIC -->
   <!-- ========================================================== -->
 
-  <runnable name="Simulation" type="group" sequential="yes" >
+  <runnable name="Simulation" type="group" sequential="yes">
     <parameters>
       <!-- USER parameters for global simualtion mode and test to be ran -->
-      <parameter name="SNAPSHOT" >REQUIRED</parameter>
-      <parameter name="RUNMODE">-c</parameter>
+      <parameter name="SNAPSHOT">REQUIRED</parameter>
+      <parameter name="RUNMODE" >-c</parameter>
       <parameter name="testfile">REQUIRED</parameter>
       <parameter name="testfile_tab">REQUIRED</parameter>
-      <parameter name="TESTCASES_UVM" type = "tcl">[GetTestCases uvm (%testfileformat%) (%testfile%) (%testfile_tab%) (%seeddir%)]</parameter>
-      <parameter name="TESTCASES_DIRECTED" type = "tcl">[GetTestCases directed (%testfileformat%) (%testfile%) (%testfile_tab%) (%seeddir%)]</parameter>
+      <parameter name="TESTCASES_UVM" type="tcl">[GetTestCases uvm (%testfileformat%) (%testfile%) (%testfile_tab%) (%seeddir%)]</parameter>
+      <parameter name="TESTCASES_DIRECTED" type="tcl">[GetTestCases directed (%testfileformat%) (%testfile%) (%testfile_tab%) (%seeddir%)]</parameter>
     </parameters>
     <members>
       <member>Compile</member> 
@@ -106,13 +118,22 @@
     <parameters>
       <!--parameter name="TBLinesOfCode" type = "tcl">[expr [GetLinesOfCodeFromPathlist (%PRJ_TB_SRC_ROOT%) *.sv] + [GetLinesOfCodeFromPathlist (%PRJ_TB_SRC_ROOT%) *.svh]]</parameter>
       <parameter name="DUTLinesOfCode" type = "tcl">[GetLinesOfCodeFromFilelist (%PRJ_DUT_SRC_ROOT%)]</parameter-->
-      <parameter name="TESTCASESFAILED" type = "tcl">[WriteFailedTestList (%faillog%) (%mergefile%)]</parameter>
+      <parameter name="TESTCASESFAILED" type="tcl">[WriteFailedTestList (%faillog%) (%mergefile%)]</parameter>
     </parameters>
 
     <localfile name="ExcludeTrendMerge.do" expand="yes">
       <command>#exclude coverage objects if relevant</command>
-      <command>if {[file exists (%CoverageAutoExcludeFile%)]} {do (%CoverageAutoExcludeFile%);set AUTO_EXCLUSIONLinesOfCode [exec cat (%CoverageAutoExcludeFile%) | wc -l]} else {set AUTO_EXCLUSIONLinesOfCode 0};</command>
-      <command>if {[file exists (%CoverageManualExcludeFile%)]} {do (%CoverageManualExcludeFile%);set MANUAL_EXCLUSIONLinesOfCode [exec cat (%CoverageManualExcludeFile%) | wc -l]} else {set MANUAL_EXCLUSIONLinesOfCode 0};</command>
+      <command>if {[file exists (%CoverageAutoExcludeFile%)]} {</command>
+      <command>  do (%CoverageAutoExcludeFile%)</command>
+      <command>  set AUTO_EXCLUSIONLinesOfCode [exec cat (%CoverageAutoExcludeFile%) | wc -l]</command>
+      <command>} else {</command>
+      <command>  set AUTO_EXCLUSIONLinesOfCode 0</command>
+      <command>}</command>
+      <command>if {[file exists (%CoverageManualExcludeFile%)]} {</command>
+      <command>  do (%CoverageManualExcludeFile%)</command>
+      <command>  set MANUAL_EXCLUSIONLinesOfCode [exec cat (%CoverageManualExcludeFile%) | wc -l]</command>
+      <command>} else {set MANUAL_EXCLUSIONLinesOfCode 0
+      <command>}</command>
       <command>#add trendable attributes such as # lines of code, number of contributing tests etc, total simulation time  ...</command>
       <!--command>coverage attribute -ucdb -trendable -name TBLinesOfCode -value (%TBLinesOfCode%);</command>
       <command>coverage attribute -ucdb -trendable -name DUTLinesOfCode -value (%DUTLinesOfCode%);</command-->
@@ -121,15 +142,15 @@
       <command>coverage attribute -ucdb -trendable -name MANUAL_EXCLUSIONLinesOfCode -value $MANUAL_EXCLUSIONLinesOfCode;</command>
       <command>coverage attribute -ucdb -trendable -name ContributingTests -value [exec cat (%DATADIR%)/(%regPrefix%).contrib | wc -l];</command>
       <command>#save merged ucdb with exclude</command>
-      <command>coverage save (%mergefile%);</command>
+      <command>coverage save (%mergefile%)</command>
       <!--save merged ucdb with exclude and trendable in logs directory for trending -->
-      <command>coverage save (%DATADIR%)/logs/(%regPrefix%)_(%TIMESTAMP%)_merge.ucdb;</command>
+      <command>coverage save (%DATADIR%)/logs/(%regPrefix%)_(%TIMESTAMP%)_merge.ucdb</command>
       <!-- keep an history of all merged ucdb in case of -clean -->
       <command>vcover merge (%mergefileAll%) (%mergefileAll%) (%mergefile%)</command>
-      <command>q -f;</command>
+      <command>q -f</command>
     </localfile>
 
-    <execScript launch="vsim">
+    <execScript launch="exec">
       <command>vcover ranktest (%mergefile%) (%rankoptions%) -rankfile (%rankfile%)</command>
       <command>source (%RMDBDIR%)/WriteSeeds.tcl</command>
       <command>WriteOptimizedTestList (%rankfile%) (%DATADIR%)/(%regPrefix%)_optimized_testfile</command>
@@ -149,8 +170,8 @@
       <command>#generate tmp trend file adding the current regression results </command>
       <command>if {[file exists (%trendfile%)]} {cp (%trendfile%) trend_tmp.ucdb;vcover merge -trend trend_tmp.ucdb trend_tmp.ucdb (%mergefile%)} else {vcover merge -trend trend_tmp.ucdb (%mergefile%)};</command>	
       <!-- create report here since we need trendfile to be generated by Simulation runnable -->
-      <command>vcover report -trend -html -htmldir (%DATADIR%)/report/trend trend_tmp.ucdb;</command>
-      <command>q -f;</command>
+      <command>vcover report -trend -html -htmldir (%DATADIR%)/report/trend trend_tmp.ucdb</command>
+      <command>q -f</command>
     </localfile>
     <execScript launch="exec">
       <command>vsim -c -viewcov (%mergefile%) -do report.do</command>
@@ -166,7 +187,7 @@
    <parameters>
       <parameter name="CompileCommand">REQUIRED</parameter>
    </parameters>
-    <execScript launch="vsim">
+    <execScript launch="exec">
       <command>(%CompileCommand%)</command>
       <!--command>cd (%VRUNDIR%)</command>
       <command>make cov=1 TB_ENV=UL SIMULATOR=questa -f Makefile.questa check clean .regression_opts comp_dut libs comp</command-->
@@ -209,6 +230,7 @@
   <!-- == Leaf repeats for each testcase for the number == -->
   <!-- == of seeds defined within the testfile.         == -->
   <!-- =================================================== -->
+
   <runnable name="uvm_test" type="task" base="test_base" foreach="(%TESTCASES_UVM%)" index="testcase">
     <parameters>
 <!-- TODO put the type here and change the testscase value depending on that-->
@@ -291,9 +313,9 @@
   </runnable>
 
 
-       <!-- ========================================================== -->
-       <!-- TOPLEVEL RUNNABLES ANALYSIS -->
-       <!-- ========================================================== -->
+  <!-- ========================================================== -->
+  <!-- TOPLEVEL RUNNABLES ANALYSIS -->
+  <!-- ========================================================== -->
   
   <runnable name="Analyze" type="group">
     <members>
@@ -309,21 +331,20 @@
     </execScript>
   </runnable-->
 
-       <!-- ========================================================== -->
-       <!-- TOPLEVEL RUNNABLES FORMAL -->
-       <!-- ========================================================== -->
+  <!-- ========================================================== -->
+  <!-- TOPLEVEL RUNNABLES FORMAL -->
+  <!-- ========================================================== -->
   
-  <runnable name="Formal" type="group" sequential="no" >
+  <runnable name="Formal" type="group" sequential="no">
     <parameters>
       <parameter name="COMPILE_PARAMS"></parameter>
-
-      <parameter name="DUTMODULE" ></parameter>
-      <parameter name="DUTLIB" ></parameter>
+      <parameter name="DUTMODULE"></parameter>
+      <parameter name="DUTLIB"   ></parameter>
       <parameter name="DUTPREFIX"></parameter>
-      <parameter name="CLKNAME">clk</parameter>
-      <parameter name="CLKDUTY">0 50</parameter>
+      <parameter name="CLKNAME"  >clk</parameter>
+      <parameter name="CLKDUTY"  >0 50</parameter>
       <parameter name="CLKPERIOD">100</parameter>
-      <parameter name="RSTNAME">rst_n</parameter>
+      <parameter name="RSTNAME"  >rst_n</parameter>
       <parameter name="RSTACTIVE">low</parameter>
       <parameter name="DIRECTIVES"></parameter>
     </parameters>
@@ -341,7 +362,7 @@
     </members>
   </runnable>
 
-  <runnable name="Coverage_exclusions" type="group" sequential="yes" >
+  <runnable name="Coverage_exclusions" type="group" sequential="yes">
     <members>
       <member>Generate_coverage_exclusions</member>
       <member>Apply_coverage_exclusions</member>
@@ -349,11 +370,11 @@
   </runnable>
 
   <runnable name="UserProperty_checking" type="task">
-<parameters>
-    <parameter name="VERIFY_PARAMS">-effort low</parameter>
-    <parameter name="ucdbfile">(%INSTANCE%).ucdb</parameter>
-</parameters>
-    <preScript launch="vsim">
+    <parameters>
+      <parameter name="VERIFY_PARAMS">-effort low</parameter>
+      <parameter name="ucdbfile">(%INSTANCE%).ucdb</parameter>
+    </parameters>
+    <preScript launch="exec">
       <command>if {[file exists (%mergefile%)]} {mv (%mergefile%) tmp.ucdb;vcover remove -out (%mergefile%) tmp.ucdb -tplan;rm tmp.ucdb};</command>
     </preScript>
 
@@ -368,9 +389,9 @@
   </runnable>
 
   <runnable name="AutomaticProperty_checking" type="task">
-<parameters>
-    <parameter name="VERIFY_PARAMS">-effort low</parameter>
-</parameters>
+    <parameters>
+      <parameter name="VERIFY_PARAMS">-effort low</parameter>
+    </parameters>
     <execScript launch="exec">
      <command>qverify -c -od autocheck_db -do "do ../compile_directives.do;
        autocheck compile -d (%DUTLIB%).(%DUTMODULE%) -modelsimini (%MODELSIMINI%) (%COMPILE_PARAMS%);
@@ -381,9 +402,9 @@
   </runnable>
 
   <runnable name="Generate_coverage_exclusions" type="task">
-<parameters>
-    <parameter name="VERIFY_PARAMS">-effort low</parameter>
-</parameters>
+    <parameters>
+      <parameter name="VERIFY_PARAMS">-effort low</parameter>
+    </parameters>
     <execScript launch="exec">
      <command>qverify -c -od covercheck_db -do "do ../../compile_directives.do;
        covercheck compile -d (%DUTLIB%).(%DUTMODULE%) -modelsimini (%MODELSIMINI%) (%COMPILE_PARAMS%);
