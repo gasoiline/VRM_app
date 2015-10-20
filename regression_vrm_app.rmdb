@@ -1,749 +1,739 @@
 <?xml version="1.0"?>
 <rmdb version="1.0" loadtcl="default" toprunnables="RegressionFlow" xmlns:xi="http://www.w3.org/2003/XInclude">
-  
-  <!-- ========================================================== -->
-  <!-- TOPLEVEL RUNNABLES -->
-  <!-- ========================================================== -->
-  <runnable name="RegressionFlow" type="group" sequential="yes">
-    <parameters>
-      <parameter name="PRJ_TB_SRC_ROOT" ></parameter>
-      <parameter name="PRJ_DUT_SRC_ROOT"></parameter>
-      <parameter name="PRJ_DUT_VERSION" export="yes"></parameter>
-      <parameter name="TIMESTAMP"   type="tcl">[exec date +%y%m%d_%H%M%S]</parameter>
-      <parameter name="MODELSIMINI" type="tcl">(%VRUNDIR%)/modelsim.ini</parameter>
-      <parameter name="regPrefix">reg</parameter>
-      <!-- RMDB parameters for coverage, debug and profiling mode -->
-      <parameter name="COVERAGEMODE">1</parameter>
-      <parameter name="DEBUGMODE"   >0</parameter>
-      <parameter name="PROFILEMODE" >0</parameter>
-      <!-- RMDB parameters for automation of coverage collection -->      
-      <parameter name="mergefile" export="yes">(%regPrefix%)_merge.ucdb</parameter>
-      <parameter name="tplanfile"    >TBD</parameter>
-      <parameter name="tplanoptions" >-format Excel -verbose</parameter>      
-      <parameter name="mergeoptions" >-testassociated</parameter>
-      <parameter name="trendoptions" ></parameter>
-      <parameter name="triagefile"   >(%regPrefix%)_triage.tdb</parameter>
-      <parameter name="triageoptions">-severity IFE -teststatus FEW -verbose</parameter>
-      <parameter name="mergefileAll" >(%DATADIR%)/logs/(%regPrefix%)_merge_all.ucdb</parameter>
-      <parameter name="rankfile"     >(%DATADIR%)/(%regPrefix%).rank</parameter>
-      <parameter name="rankoptions"  >-fewest -log (%rankfile%).log</parameter>
-      <parameter name="trendfile"    >(%DATADIR%)/logs/(%regPrefix%)_trend.ucdb</parameter>
-      <parameter name="reportoptions">-html -details -source -code bcestxf -assert -cvg -htmldir (%DATADIR%)/report/coverage</parameter>
-      <parameter name="CoverageAutoExcludeFile"  >(%DATADIR%)/covercheck_exclude.do</parameter>
-      <parameter name="CoverageManualExcludeFile">TBD</parameter>
-      <parameter name="faillog">(%DATADIR%)/(%regPrefix%)_failed_tests.log </parameter>
-      <parameter name="seeddir">(%DATADIR%)/(%regPrefix%)_seedDir</parameter>
-      <parameter name="testfileformat">sheet</parameter>
-    </parameters>
 
-    <members>
-      <member>Run</member> 
-      <member>PostProcess</member> 
-      <member>Report</member>
-      <member>Analyze</member> 
-    </members>
-     <postScript launch="exec">
-      <!--remove seedDir to ensure we have new random seed for next regression run-->
-      <command>file delete -force -- (%seeddir%)</command>
-      <!--add 3 Features oriented specific metrics to testplan attributes -->
-      <command>vsim -c  -do "source (%RMDBDIR%)/feature.tcl ; AddFeatures /testplan (%mergefile%) (%mergefile%) ; quit -f"</command>
-    </postScript>
-  </runnable>
+   <!-- ========================================================== -->
+   <!-- TOP-LEVEL RUNNABLES -->
+   <!-- ========================================================== -->
+   <runnable name="RegressionFlow" type="group" sequential="yes">
+      <parameters>
+         <parameter name="PRJ_TB_SRC_ROOT"></parameter>
+         <parameter name="PRJ_DUT_SRC_ROOT"></parameter>
+         <parameter name="PRJ_DUT_VERSION" export="yes">0.1</parameter>
+         <parameter name="TIMESTAMP" type="tcl">[exec date +%y%m%d_%H%M%S]</parameter>
+         <parameter name="MODELSIMINI" type="tcl">(%VRUNDIR%)/modelsim.ini</parameter>
+         <parameter name="regPrefix">reg</parameter>
+         <!-- RMDB parameters for setting up automated e-mail notifications -->
+         <parameter name="EMAIL_RECIPIENTS"></parameter>
+         <parameter name="EMAIL_SECTIONS">all</parameter>
+         <parameter name="EMAIL_SUBJECT">VRM: Automated Status Message</parameter>
+         <parameter name="EMAIL_MESSAGE"></parameter>
+         <!-- RMDB parameters for coverage, debug and profiling mode -->
+         <parameter name="COVERAGEMODE">1</parameter>
+         <parameter name="DEBUGMODE">0</parameter>
+         <parameter name="PROFILEMODE">0</parameter>
+         <!-- RMDB parameters for automation of coverage collection -->
+         <parameter name="mergefile" export="yes">(%regPrefix%)_merge.ucdb</parameter>
+         <parameter name="tplanfile">TBD</parameter>
+         <parameter name="tplanoptions">-format Excel -verbose</parameter>
+         <parameter name="mergeoptions">-testassociated</parameter>
+         <parameter name="trendoptions" />
+         <parameter name="triagefile">(%regPrefix%)_triage.tdb</parameter>
+         <parameter name="triageoptions">-severity IFE -teststatus FEW -verbose</parameter>
+         <parameter name="mergefileAll">(%DATADIR%)/logs/(%regPrefix%)_merge_all.ucdb</parameter>
+         <parameter name="rankfile">(%DATADIR%)/(%regPrefix%).rank</parameter>
+         <parameter name="rankoptions">-fewest -log (%rankfile%).log</parameter>
+         <parameter name="trendfile">(%DATADIR%)/logs/(%regPrefix%)_trend.ucdb</parameter>
+         <parameter name="reportoptions">-html -details -source -code bcestxf -assert -cvg -htmldir (%DATADIR%)/report/coverage</parameter>
+         <parameter name="CoverageAutoExcludeFile">(%DATADIR%)/covercheck_exclude.do</parameter>
+         <parameter name="CoverageManualExcludeFile">TBD</parameter>
+         <parameter name="faillog">(%DATADIR%)/(%regPrefix%)_failed_tests.log </parameter>
+         <parameter name="seeddir">(%DATADIR%)/(%regPrefix%)_seedDir</parameter>
+         <parameter name="testfileformat">sheet</parameter>
+      </parameters>
 
-  <runnable name="Run" type="group" sequential="no">
-    <parameters>
-    </parameters>
-    <members>
-      <member>Dynamic</member> 
-      <member>Formal</member> 
-    </members>
-    <postScript launch="exec">
-      <!--merge back TP in case of -du used fin mergeoptions -->
-      <!-- TODO improve merge command by extracting mergeoptions trimmed with -du optiuons -->
-      <command>if { (%COVERAGEMODE%) == 0 || (%PROFILEMODE%) == 1 || (%DEBUGMODE%) == 1 } {</command>
-      <command>} else { </command>
-      <command>  if {[string match *-du* "(%mergeoptions%)" ]} {</command>
-      <command>    set index [string last / "(%tplanfile%)"]
-      <command>    echo $index;set tplan [string range (%tplanfile%) [expr $index+1] [string length (%tplanfile%)]]</command>
-      <command>    echo $tplan</command>
-      <command>    vcover merge -testassociated -out (%mergefile%) (%mergefile%) [string map {".ucdb" "" } (%mergefile%)]_[string map {xml ucdb} $tplan]</command>
-      <command>  }</command>
-      <command>}</command>
-    </postScript>
+      <members>
+         <member>Run</member>
+         <member>PostProcess</member>
+         <member>Report</member>
+         <member>Analyze</member>
+      </members>
+      <postScript launch="exec">
+         <!-- remove seedDir to ensure we have new random seed for next regression run -->
+         <command>file delete -force -- (%seeddir%)</command>
+         <!-- add 3 Feature oriented specific metrics to testplan attributes -->
+         <command>vsim -c -do "source (%RMDBDIR%)/feature.tcl; AddFeatures /testplan (%mergefile%) (%mergefile%); quit -f"</command>
+      </postScript>
+   </runnable>
 
-  </runnable>
+   <runnable name="Run" type="group" sequential="no">
+      <members>
+         <member>Dynamic</member>
+         <member>Formal</member>
+      </members>
+      <postScript launch="vsim">
+         <!-- merge back TP in case of -du used fin mergeoptions -->
+         <!-- TODO improve merge command by extracting mergeoptions trimmed with -du optiuons -->
+         <command>
+            if { (%COVERAGEMODE%) == 0 || (%PROFILEMODE%) == 1 || (%DEBUGMODE%) == 1 } {
+            } else {
+            if {[string match *-du* "(%mergeoptions%)" ]} {
+            set index [string last / "(%tplanfile%)"]
+            echo $index
+            set tplan [string range (%tplanfile%) [expr $index+1] [string length (%tplanfile%)]]
+            echo $tplan
+            vcover merge -testassociated -out (%mergefile%) (%mergefile%) [string map {".ucdb" "" } (%mergefile%)]_[string map {xml ucdb} $tplan]
+            }
+            }
+         </command>
+      </postScript>
+   </runnable>
 
-  <runnable name="Dynamic" type="group" sequential="yes">
-    <parameters>
-    </parameters>
-    <preScript launch="vsim">
-      <command>if {[file exists (%mergefile%)]} {</command>
-      <command>  file rename (%mergefile%) tmp.ucdb</command>
-      <command>  vcover remove -tplan -out (%mergefile%) tmp.ucdb</command>
-      <command>  file delete tmp.ucdb</command>
-      <command>}</command>
-    </preScript>
+   <runnable name="Dynamic" type="group" sequential="yes">
+      <preScript launch="vsim">
+         <command>
+            if {[file exists (%mergefile%)]} {
+            file rename (%mergefile%) tmp.ucdb
+            vcover remove -tplan -out (%mergefile%) tmp.ucdb
+            file delete tmp.ucdb
+            }
+         </command>
+      </preScript>
 
-    <members>
-      <member>Simulation</member> 
-    </members>
-    <postScript launch="exec">
-      <!--relocate trend ucdb in data directory instead of default location which is hidden ER TO BE FILLED-->
-      <command>if {[file exists (%trendfile%)]} {cp (%trendfile%) (%DATADIR%)/.}</command>
-    </postScript>
-  </runnable>
+      <members>
+         <member>Simulation</member>
+      </members>
+      <postScript launch="vsim">
+         <!--relocate trend ucdb in data directory instead of default location which is hidden ER TO BE FILLED -->
+         <command>if {[file exists (%trendfile%)]} {file copy (%trendfile%) (%DATADIR%)/.}</command>
+      </postScript>
+   </runnable>
 
-  <!-- ========================================================== -->
-  <!-- TOPLEVEL RUNNABLES DYNAMIC -->
-  <!-- ========================================================== -->
+   <!-- ========================================================== -->
+   <!-- TOP-LEVEL RUNNABLES DYNAMIC -->
+   <!-- ========================================================== -->
+   <runnable name="Simulation" type="group" sequential="yes">
+      <parameters>
+         <!-- USER parameters for global simualtion mode and test to be ran -->
+         <parameter name="SNAPSHOT">REQUIRED</parameter>
+         <parameter name="RUNMODE">-c</parameter>
+         <parameter name="testfile">REQUIRED</parameter>
+         <parameter name="testfile_tab">REQUIRED</parameter>
+         <parameter name="directed_testfile" type="tcl">[GetTestCases (%testfileformat%) directed (%testfile%) (%testfile_tab%)]</parameter>
+         <parameter name="uvm_testfile" type="tcl">[GetTestCases (%testfileformat%) uvm (%testfile%) (%testfile_tab%)]</parameter>
+      </parameters>
+      <members>
+         <member>Compile</member>
+         <member>Simulate</member>
+      </members>
+   </runnable>
 
-  <runnable name="Simulation" type="group" sequential="yes">
-    <parameters>
-      <!-- USER parameters for global simualtion mode and test to be ran -->
-      <parameter name="SNAPSHOT">REQUIRED</parameter>
-      <parameter name="RUNMODE" >-c</parameter>
-      <parameter name="testfile">REQUIRED</parameter>
-      <parameter name="testfile_tab">REQUIRED</parameter>
-      <parameter name="TESTCASES_UVM" type="tcl">[GetTestCases uvm (%testfileformat%) (%testfile%) (%testfile_tab%) (%seeddir%)]</parameter>
-      <parameter name="TESTCASES_DIRECTED" type="tcl">[GetTestCases directed (%testfileformat%) (%testfile%) (%testfile_tab%) (%seeddir%)]</parameter>
-    </parameters>
-    <members>
-      <member>Compile</member> 
-      <member>Simulate</member> 
-    </members>
-</runnable>
+   <!-- RUNNABLE USED TO RUN RANKING PROCESS AND CREATE OPTIMIZED TESTFILE -->
+   <runnable name="PostProcess" type="task" unless="[string equal &quot;(%COVERAGEMODE%)&quot; &quot;0&quot;] || [string equal &quot;(%DEBUGMODE%)&quot; &quot;1&quot;] || [string equal &quot;(%PROFILEMODE%)&quot; &quot;1&quot;]">
+      <parameters>
+         <!-- <parameter name="TBLinesOfCode" type="tcl">[expr [GetLinesOfCodeFromPathlist (%PRJ_TB_SRC_ROOT%) *.sv] + [GetLinesOfCodeFromPathlist (%PRJ_TB_SRC_ROOT%) *.svh]]</parameter> <parameter name="DUTLinesOfCode" type="tcl">[GetLinesOfCodeFromFilelist (%PRJ_DUT_SRC_ROOT%)]</parameter -->
+         <parameter name="TESTCASESFAILED" type="tcl">(%faillog%).csv</parameter>
+      </parameters>
 
-  <!-- RUNNABLE USED TO RUN RANKING PROCESS AND CREATE OPTIMIZED TESTFILE -->
-  <runnable name="PostProcess" type="task" unless="[string equal &quot;(%COVERAGEMODE%)&quot; &quot;0&quot;] || [string equal &quot;(%DEBUGMODE%)&quot; &quot;1&quot;] || [string equal &quot;(%PROFILEMODE%)&quot; &quot;1&quot;]">
-    <parameters>
-      <!--parameter name="TBLinesOfCode" type = "tcl">[expr [GetLinesOfCodeFromPathlist (%PRJ_TB_SRC_ROOT%) *.sv] + [GetLinesOfCodeFromPathlist (%PRJ_TB_SRC_ROOT%) *.svh]]</parameter>
-      <parameter name="DUTLinesOfCode" type = "tcl">[GetLinesOfCodeFromFilelist (%PRJ_DUT_SRC_ROOT%)]</parameter-->
-      <parameter name="TESTCASESFAILED" type="tcl">[WriteFailedTestList (%faillog%) (%mergefile%)]</parameter>
-    </parameters>
+      <localfile name="ExcludeTrendMerge.do" expand="yes">
+         <command>#exclude coverage objects if relevant</command>
+         <command>set AUTO_EXCLUSIONLinesOfCode 0</command>
+         <command>set MANUAL_EXCLUSIONLinesOfCode 0</command>
+         <command>if {[file exists (%CoverageAutoExcludeFile%)]} {</command>
+         <command> do (%CoverageAutoExcludeFile%)</command>
+         <command> set AUTO_EXCLUSIONLinesOfCode [exec cat (%CoverageAutoExcludeFile%) | wc -l]</command>
+         <command>}</command>
+         <command>if {[file exists (%CoverageManualExcludeFile%)]} {</command>
+         <command> do (%CoverageManualExcludeFile%)</command>
+         <command> set MANUAL_EXCLUSIONLinesOfCode [exec cat (%CoverageManualExcludeFile%) | wc -l]</command>
+         <command>}</command>
+         <command>#add trendable attributes such as # lines of code, # of contributing tests, total simulation time, etc.</command>
+         <!-- coverage attribute -ucdb -trendable -name TBLinesOfCode -value (%TBLinesOfCode%) coverage attribute -ucdb -trendable -name DUTLinesOfCode -value (%DUTLinesOfCode%) -->
+         <command>coverage attribute -ucdb -trendable -name DUTRelease -value (%PRJ_DUT_VERSION%)</command>
+         <command>coverage attribute -ucdb -trendable -name AUTO_EXCLUSIONLinesOfCode -value $AUTO_EXCLUSIONLinesOfCode</command>
+         <command>coverage attribute -ucdb -trendable -name MANUAL_EXCLUSIONLinesOfCode -value $MANUAL_EXCLUSIONLinesOfCode</command>
+         <command>coverage attribute -ucdb -trendable -name ContributingTests -value [exec cat (%DATADIR%)/(%regPrefix%).contrib | wc -l]</command>
+         <command>#save merged ucdb with exclude</command>
+         <command>coverage save (%mergefile%)</command>
+         <!--save merged ucdb with exclude and trendable in logs directory for trending -->
+         <command>coverage save (%DATADIR%)/logs/(%regPrefix%)_(%TIMESTAMP%)_merge.ucdb</command>
+         <!-- keep an history of all merged ucdb in case of -clean -->
+         <command>vcover merge (%mergefileAll%) (%mergefileAll%) (%mergefile%)</command>
+         <command>q -f</command>
+      </localfile>
 
-    <localfile name="ExcludeTrendMerge.do" expand="yes">
-      <command>#exclude coverage objects if relevant</command>
-      <command>if {[file exists (%CoverageAutoExcludeFile%)]} {</command>
-      <command>  do (%CoverageAutoExcludeFile%)</command>
-      <command>  set AUTO_EXCLUSIONLinesOfCode [exec cat (%CoverageAutoExcludeFile%) | wc -l]</command>
-      <command>} else {</command>
-      <command>  set AUTO_EXCLUSIONLinesOfCode 0</command>
-      <command>}</command>
-      <command>if {[file exists (%CoverageManualExcludeFile%)]} {</command>
-      <command>  do (%CoverageManualExcludeFile%)</command>
-      <command>  set MANUAL_EXCLUSIONLinesOfCode [exec cat (%CoverageManualExcludeFile%) | wc -l]</command>
-      <command>} else {set MANUAL_EXCLUSIONLinesOfCode 0
-      <command>}</command>
-      <command>#add trendable attributes such as # lines of code, number of contributing tests etc, total simulation time  ...</command>
-      <!--command>coverage attribute -ucdb -trendable -name TBLinesOfCode -value (%TBLinesOfCode%);</command>
-      <command>coverage attribute -ucdb -trendable -name DUTLinesOfCode -value (%DUTLinesOfCode%);</command-->
-      <command>coverage attribute -ucdb -trendable -name DUTRelease -value (%PRJ_DUT_VERSION%);</command>
-      <command>coverage attribute -ucdb -trendable -name AUTO_EXCLUSIONLinesOfCode -value $AUTO_EXCLUSIONLinesOfCode;</command>
-      <command>coverage attribute -ucdb -trendable -name MANUAL_EXCLUSIONLinesOfCode -value $MANUAL_EXCLUSIONLinesOfCode;</command>
-      <command>coverage attribute -ucdb -trendable -name ContributingTests -value [exec cat (%DATADIR%)/(%regPrefix%).contrib | wc -l];</command>
-      <command>#save merged ucdb with exclude</command>
-      <command>coverage save (%mergefile%)</command>
-      <!--save merged ucdb with exclude and trendable in logs directory for trending -->
-      <command>coverage save (%DATADIR%)/logs/(%regPrefix%)_(%TIMESTAMP%)_merge.ucdb</command>
-      <!-- keep an history of all merged ucdb in case of -clean -->
-      <command>vcover merge (%mergefileAll%) (%mergefileAll%) (%mergefile%)</command>
-      <command>q -f</command>
-    </localfile>
+      <execScript launch="vsim">
+         <command>vcover ranktest (%mergefile%) (%rankoptions%) -rankfile (%rankfile%)</command>
+         <command>source (%RMDBDIR%)/WriteSeeds.tcl</command>
+         <command>WriteOptimizedTestList (%rankfile%) (%DATADIR%)/(%regPrefix%)_optimized_testfile</command>
+         <command>vsim -c -viewcov (%mergefile%) -do ExcludeTrendMerge.do</command>
+         <command>echo [format "Created list fo failed tests to rerun on-demand \n: %s" (%TESTCASESFAILED%)]</command>
+      </execScript>
+   </runnable>
 
-    <execScript launch="exec">
-      <command>vcover ranktest (%mergefile%) (%rankoptions%) -rankfile (%rankfile%)</command>
-      <command>source (%RMDBDIR%)/WriteSeeds.tcl</command>
-      <command>WriteOptimizedTestList (%rankfile%) (%DATADIR%)/(%regPrefix%)_optimized_testfile</command>
-      <command>vsim -c -viewcov (%mergefile%) -do ExcludeTrendMerge.do</command>
-      <command>echo [format "Created list fo failed tests to rerun on-demand \n: %s" (%TESTCASESFAILED%)]</command>
-    </execScript>
-  </runnable>
+   <!-- RUNNABLE USED TO REPORT COVERAGE RESULTS -->
+   <runnable name="Report" type="task" unless="[string equal &quot;(%COVERAGEMODE%)&quot; &quot;0&quot;] || [string equal &quot;(%DEBUGMODE%)&quot; &quot;1&quot;] || [string equal &quot;(%PROFILEMODE%)&quot; &quot;1&quot;]">
+      <localfile name="report.do" expand="yes">
+         <command>#generate coverage report</command>
+         <command>vcover report (%reportoptions%) (%mergefile%) &gt;&amp; /dev/null</command>
+         <command>#automatic trendfile created at end of vrun so report is always n-1</command>
+         <command>#will be removed if fixed in future release</command>
+         <command>#generate tmp trend file adding the current regression results</command>
+         <command>if {[file exists (%trendfile%)]} {</command>
+         <command> file copy (%trendfile%) trend_tmp.ucdb</command>
+         <command> vcover merge -trend trend_tmp.ucdb trend_tmp.ucdb (%mergefile%)</command>
+         <command>} else {</command>
+         <command> vcover merge -trend trend_tmp.ucdb (%mergefile%)</command>
+         <command>}</command>
+         <!-- create report here since we need trendfile to be generated by Simulation runnable -->
+         <command>vcover report -trend -html -htmldir (%DATADIR%)/report/trend trend_tmp.ucdb</command>
+         <command>q -f</command>
+      </localfile>
+      <execScript launch="exec">
+         <command>vsim -c -viewcov (%mergefile%) -do report.do</command>
+         <command>vrun -status -vrmdata (%DATADIR%) -html -htmldir (%DATADIR%)/report/vrun</command>
+      </execScript>
+   </runnable>
 
-  <!-- RUNNABLE USED TO REPORT COVERAGE RESULTS -->
-  <runnable name="Report" type="task" unless="[string equal &quot;(%COVERAGEMODE%)&quot; &quot;0&quot;] || [string equal &quot;(%DEBUGMODE%)&quot; &quot;1&quot;] || [string equal &quot;(%PROFILEMODE%)&quot; &quot;1&quot;]">
-    <localfile name="report.do" expand="yes">
-      <command>#generate coverage report</command>
-      <!--command>vcover report -html -details -source -code bcestxf -assert -cvg -htmldir (%DATADIR%)/report/coverage (%mergefile%) &gt;&amp; /dev/null;</command-->
-      <command>vcover report (%reportoptions%) (%mergefile%) &gt;&amp; /dev/null;</command>
-      <command>#automatic trendfile created at end of vrun so report is always n-1</command>
-      <command>#will be removed if fixed in future release</command>
-      <command>#generate tmp trend file adding the current regression results </command>
-      <command>if {[file exists (%trendfile%)]} {cp (%trendfile%) trend_tmp.ucdb;vcover merge -trend trend_tmp.ucdb trend_tmp.ucdb (%mergefile%)} else {vcover merge -trend trend_tmp.ucdb (%mergefile%)};</command>	
-      <!-- create report here since we need trendfile to be generated by Simulation runnable -->
-      <command>vcover report -trend -html -htmldir (%DATADIR%)/report/trend trend_tmp.ucdb</command>
-      <command>q -f</command>
-    </localfile>
-    <execScript launch="exec">
-      <command>vsim -c -viewcov (%mergefile%) -do report.do</command>
-      <command>vrun -status -vrmdata (%DATADIR%) -html -htmldir (%DATADIR%)/report/vrun</command>
-    </execScript>
-  </runnable>
+   <!-- ========================================================== -->
+   <!-- TOPLEVEL RUNNABLES SIMULATION -->
+   <!-- ========================================================== -->
+   <runnable name="Compile" type="task">
+      <parameters>
+         <parameter name="CompileCommand">REQUIRED</parameter>
+      </parameters>
+      <execScript launch="exec">
+         <command>(%CompileCommand%)</command>
+         <!--command>cd (%VRUNDIR%)</command> <command>make cov=1 TB_ENV=UL SIMULATOR=questa -f Makefile.questa check clean .regression_opts comp_dut libs comp</command -->
+      </execScript>
+   </runnable>
 
-  <!-- ========================================================== -->
-  <!-- TOPLEVEL RUNNABLES SIMULATION -->
-  <!-- ========================================================== -->
-  
-  <runnable name="Compile" type="task">
-   <parameters>
-      <parameter name="CompileCommand">REQUIRED</parameter>
-   </parameters>
-    <execScript launch="exec">
-      <command>(%CompileCommand%)</command>
-      <!--command>cd (%VRUNDIR%)</command>
-      <command>make cov=1 TB_ENV=UL SIMULATOR=questa -f Makefile.questa check clean .regression_opts comp_dut libs comp</command-->
-    </execScript>
-  </runnable>
+   <runnable name="Simulate" type="group">
+      <parameters>
+         <parameter name="SimulatePrecommand" />
+      </parameters>
+      <members>
+         <member>UVMTests</member>
+         <member>DirectedTests</member>
+      </members>
+      <preScript launch="exec">
+         <command>(%SimulatePrecommand%)</command>
+      </preScript>
+   </runnable>
 
-  <runnable name="Simulate" type="group">
-    <parameters>
-      <parameter name="SimulatePrecommand"></parameter>
-    </parameters>
-    <members>
-      <member>UVMTests</member> 
-      <member>DirectedTests</member> 
-    </members>
-  </runnable>
-  <runnable name="DirectedTests" type="group" unless="[string equal &quot;(%TESTCASES_DIRECTED%)&quot; &quot;&quot;]">
-    <parameters>
-      <parameter name="SimulatePrecommand"></parameter>
-    </parameters>
-    <preScript launch="exec">
-      <command>(%SimulatePrecommand%)</command>
-    </preScript>
-    <members>
-      <member>directed_test</member> 
-    </members>
-  </runnable>
-  <runnable name="UVMTests" type="group" unless="[string equal &quot;(%TESTCASES_UVM%)&quot; &quot;&quot;]">
-    <parameters>
-      <parameter name="SimulatePrecommand"></parameter>
-    </parameters>
-    <preScript launch="exec">
-      <command>(%SimulatePrecommand%)</command>
-    </preScript>
-    <members>
-      <member>uvm_test</member> 
-    </members>
-  </runnable>
+   <!-- =================================================== -->
+   <!-- == Leaf repeats for each testcase for the number == -->
+   <!-- == of seeds defined within the testfile. == -->
+   <!-- =================================================== -->
+   <runnable name="DirectedTests" type="task" testlist="(%directed_testfile%)" if="[file exists (%directed_testfile%)]">
+      <parameters>
+         <!-- TODO put the type here and change the testscase value depending on that -->
+         <parameter name="testname" type="tcl">[lindex [split (%ITERATION%) "_" 0]_(%seed%)</parameter>
+         <parameter name="seed" type="tcl">[lindex [split (%testcase%) "."] 1]</parameter>
+         <parameter name="testoptions" type="tcl">[lindex [GetTestSettings directed (%testcase%)] 0]</parameter>
+      </parameters>
+      <members>
+         <member>directed_test</member>
+      </members>
+   </runnable>
 
-  <!-- =================================================== -->
-  <!-- == Leaf repeats for each testcase for the number == -->
-  <!-- == of seeds defined within the testfile.         == -->
-  <!-- =================================================== -->
+   <runnable name="UVMTests" type="task" base="test_base" testlist="(%uvm_testfile%)" if="[file exists (%uvm_testfile%)]">
+      <parameters>
+         <!-- TODO put the type here and change the testscase value depending on that -->
+         <parameter name="testname">(%uvm_testname%)_(%seed%)</parameter>
+         <parameter name="uvm_testname" type="tcl">[string range (%ITERATION%) 0 [string last _ (%ITERATION%)]]</parameter>
+         <parameter name="testoptions">+UVM_TESTNAME=(%uvm_testname%)</parameter>
+      </parameters>
+   </runnable>
 
-  <runnable name="uvm_test" type="task" base="test_base" foreach="(%TESTCASES_UVM%)" index="testcase">
-    <parameters>
-<!-- TODO put the type here and change the testscase value depending on that-->
-      <parameter name="testname">(%testcase%)</parameter>
-      <parameter name="uvm_testname" type="tcl">[lindex [split (%testcase%) "."] 0]</parameter>
-      <parameter name="seed" type="tcl">[lindex [split (%testcase%) "."] 1]</parameter>
-      <parameter name="testoptions" type="tcl">[lindex [GetTestSettings uvm (%testcase%)] 0] +UVM_TESTNAME=(%uvm_testname%)</parameter>
-    </parameters>
-  </runnable>
-  <runnable name="directed_test" type="task" base="test_base" foreach="(%TESTCASES_DIRECTED%)" index="testcase">
-    <parameters>
-<!-- TODO put the type here and change the testscase value depending on that-->
-      <parameter name="testname">(%testcase%)</parameter>
-      <parameter name="seed" type="tcl">[lindex [split (%testcase%) "."] 1]</parameter>
-      <parameter name="testoptions" type="tcl">[lindex [GetTestSettings directed (%testcase%)] 0]</parameter>
-    </parameters>
-  </runnable>
-  
-  <runnable name="test_base" type="base">
-    <parameters>
-      <parameter name="seed">random</parameter>
-      <parameter name="ucdbfile">(%INSTANCE%).ucdb</parameter>
-      <parameter name="UCDBFILTER"></parameter>
-      <parameter name="vsimoptions"> -modelsimini (%MODELSIMINI%) -do "run.do" -wlf (%INSTANCE%).wlf -l (%INSTANCE%).log -title (%INSTANCE%) -sv_seed (%seed%) (%UCDBFILTER%) -cvgprecollect (%mergefile%)</parameter>
+   <runnable name="test_base" type="base">
+      <parameters>
+         <parameter name="seed">random</parameter>
+         <parameter name="ucdbfile">(%INSTANCE%).ucdb</parameter>
+         <parameter name="UCDBFILTER" />
+         <parameter name="vsimoptions"> -modelsimini (%MODELSIMINI%) -do "run.do" -wlf (%INSTANCE%).wlf -l (%INSTANCE%).log -title (%INSTANCE%) -sv_seed (%seed%) (%UCDBFILTER%) -cvgprecollect (%mergefile%)</parameter>
 
-      <parameter name="testPrecommand"></parameter>
-      <parameter name="vsimRundo">coverage save -cvg -codeAll -assert -onexit (%ucdbfile%);run -a;q -f</parameter>
-      <parameter name="vsimDebugdo">add log -r /* -depth 4</parameter>
-      <parameter name="vsimProfiledo">profile on -assertions -classes -cvg -qdas -solver;profile save -onexit (%INSTANCE%).pdb</parameter>
-      <parameter name="testPostcommand"></parameter>
-    </parameters>
-<!-- create default UCDB empty with minimal info -->
-    <localfile name="precov.do" expand="yes">
-      <command>if { (%COVERAGEMODE%) == 0 || (%PROFILEMODE%) == 1 || (%DEBUGMODE%) == 1 } {} else {</command>
-      <command>coverage attribute -name TESTNAME -value (%INSTANCE%);</command>
-      <command>coverage attribute -test (%INSTANCE%) -name TESTSTATUS -value 2;</command>
-      <command>coverage attribute -test (%INSTANCE%) -name TSTAT_REASON -value $REASON;</command>
-<!-- back annotate test options so we can build the optimized test list -->
-      <command>coverage attribute -test (%INSTANCE%) -name TESTOPTIONS -value &quot;(%testoptions%)&quot;;</command>
-      <command>coverage attribute;</command>
-      <command>coverage save (%ucdbfile%);</command>
-      <command>}</command>
-    </localfile>
-    <localfile name="run.do" expand="yes">
-      <command>if {(%DEBUGMODE%) == 1 } {do debug.do}</command>
-      <command>if {(%PROFILEMODE%) == 1 } {do profile.do}</command>
-      <command>(%vsimRundo%)</command>
-    </localfile>
-    <localfile name="debug.do" expand="yes">
-      <command>(%vsimDebugdo%)</command>
-    </localfile>
-    <localfile name="profile.do" expand="yes">
-      <command>(%vsimProfiledo%)</command>
-    </localfile>
-    <localfile name="postcov.do" expand="yes">
-      <command>if { (%COVERAGEMODE%) == 0 || (%PROFILEMODE%) == 1 || (%DEBUGMODE%) == 1 } {} else {</command>
-      <!-- clear coverage if not passed -->
-     <command>if {![string equal [coverage attribute -name TSTAT_REASON -concise] "Crashed"]} 
-	{
- 	 if {[coverage attribute -name TESTSTATUS -concise] &gt; 1} {coverage clear;}
-	};</command>
- <!-- back annotate test options so we can build the optimized test list -->
-     <command>coverage attribute -test (%INSTANCE%) -name TESTOPTIONS -value &quot;(%testoptions%)&quot;;</command>
-     <command>coverage attribute;</command>
-      <command>coverage save (%ucdbfile%);</command>
-      <command>}</command>
-    </localfile>
+         <parameter name="testPrecommand" />
+         <parameter name="vsimRundo">coverage save -cvg -codeAll -assert -onexit (%ucdbfile%);run -a;q -f</parameter>
+         <parameter name="vsimDebugdo">add log -r /* -depth 4</parameter>
+         <parameter name="vsimProfiledo">profile on -assertions -classes -cvg -qdas -solver;profile save -onexit (%INSTANCE%).pdb</parameter>
+         <parameter name="testPostcommand" />
+      </parameters>
+      <!-- create default empty UCDB with minimal info -->
+      <localfile name="precov.do" expand="yes">
+         <command>if { (%COVERAGEMODE%) == 0 || (%PROFILEMODE%) == 1 || (%DEBUGMODE%) == 1 } {} else {</command>
+         <command> coverage attribute -name TESTNAME -value (%INSTANCE%)</command>
+         <command> coverage attribute -test (%INSTANCE%) -name TESTSTATUS -value 2</command>
+         <command> coverage attribute -test (%INSTANCE%) -name TSTAT_REASON -value $REASON</command>
+         <!-- back annotate test options so we can build the optimized test list -->
+         <command> coverage attribute -test (%INSTANCE%) -name TESTOPTIONS -value "(%testoptions%)"</command>
+         <command> coverage attribute</command>
+         <command> coverage save (%ucdbfile%)</command>
+         <command>}</command>
+      </localfile>
+      <localfile name="run.do" expand="yes">
+         <command>if {(%DEBUGMODE%) == 1 } {do debug.do}</command>
+         <command>if {(%PROFILEMODE%) == 1 } {do profile.do}</command>
+         <command>(%vsimRundo%)</command>
+      </localfile>
+      <localfile name="debug.do" expand="yes">
+         <command>(%vsimDebugdo%)</command>
+      </localfile>
+      <localfile name="profile.do" expand="yes">
+         <command>(%vsimProfiledo%)</command>
+      </localfile>
+      <localfile name="postcov.do" expand="yes">
+         <command>if { (%COVERAGEMODE%) == 0 || (%PROFILEMODE%) == 1 || (%DEBUGMODE%) == 1 } {} else {</command>
+         <!-- clear coverage if not passed -->
+         <command>if {![string equal [coverage attribute -name TSTAT_REASON -concise] "Crashed"]} {</command>
+         <command> if {[coverage attribute -name TESTSTATUS -concise] > 1} {coverage clear} }</command>
+         <!-- back annotate test options so we can build the optimized test list -->
+         <command>coverage attribute -test (%INSTANCE%) -name TESTOPTIONS -value "(%testoptions%)"</command>
+         <command>coverage attribute</command>
+         <command>coverage save (%ucdbfile%)</command>
+         <command>}</command>
+      </localfile>
 
-    <execScript launch="exec">
-      <command>(%testPrecommand%)</command>
-       <!-- set empty ucdb coverage to crashed by default -->
-      <command>vsim -c -do "coverage save -empty (%ucdbfile%);q -f"</command>
-      <command>vsim -c -viewcov (%ucdbfile%) -do "set REASON Crashed;do precov.do;q -f"</command>
-       <!-- run test -->
-      <command>vsim (%vsimoptions%) (%testoptions%) (%RUNMODE%) (%SNAPSHOT%)</command>
-       <!-- clear coverage if test ran and failed -->
-      <command>vsim -c -viewcov (%ucdbfile%) -do "do postcov.do;q -f"</command>
-      <command>(%testPostcommand%)</command>
-    </execScript>
-  </runnable>
+      <execScript launch="exec">
+         <command>(%testPrecommand%)</command>
+         <!-- set empty ucdb coverage to crashed by default -->
+         <command>vsim -c -do "coverage save -empty (%ucdbfile%);q -f"</command>
+         <command>vsim -c -viewcov (%ucdbfile%) -do "set REASON Crashed;do precov.do;q -f"</command>
+         <!-- run test -->
+         <command>vsim (%vsimoptions%) (%testoptions%) (%RUNMODE%) (%SNAPSHOT%)</command>
+         <!-- clear coverage if test ran and failed -->
+         <command>vsim -c -viewcov (%ucdbfile%) -do "do postcov.do;q -f"</command>
+         <command>(%testPostcommand%)</command>
+      </execScript>
+   </runnable>
 
+   <!-- ========================================================== -->
+   <!-- TOPLEVEL RUNNABLES ANALYSIS -->
+   <!-- ========================================================== -->
+   <runnable name="Analyze" type="group">
+      <members>
+         <!--member>Trending</member -->
+         <!--member>Profiling</member -->
+      </members>
+   </runnable>
 
-  <!-- ========================================================== -->
-  <!-- TOPLEVEL RUNNABLES ANALYSIS -->
-  <!-- ========================================================== -->
-  
-  <runnable name="Analyze" type="group">
-    <members>
-      <!--member>Trending</member--> 
-      <!--member>Profiling</member--> 
-    </members>
-  </runnable>
+   <!--runnable name="Trending" type="task"> <execScript> <command>vcover merge -trend -output (%TIMESTAMP%)_trend_db (%DATADIR%)/logs/*.ucdb</command> <command>vcover report -trend -html -htmldir (%DATADIR%)/report/trend -verbose (%TIMESTAMP%)_trend_db/merged.data</command> </execScript> </runnable -->
 
-  <!--runnable name="Trending" type="task">
-    <execScript>
-     <command>vcover merge -trend -output (%TIMESTAMP%)_trend_db (%DATADIR%)/logs/*.ucdb</command>
-     <command>vcover report -trend -html -htmldir (%DATADIR%)/report/trend -verbose (%TIMESTAMP%)_trend_db/merged.data</command>
-    </execScript>
-  </runnable-->
+   <!-- ========================================================== -->
+   <!-- TOPLEVEL RUNNABLES FORMAL -->
+   <!-- ========================================================== -->
+   <runnable name="Formal" type="group" sequential="no">
+      <parameters>
+         <parameter name="COMPILE_PARAMS" />
+         <parameter name="DUTMODULE" />
+         <parameter name="DUTLIB" />
+         <parameter name="DUTPREFIX" />
+         <parameter name="CLKNAME">clk</parameter>
+         <parameter name="CLKDUTY">0 50</parameter>
+         <parameter name="CLKPERIOD">100</parameter>
+         <parameter name="RSTNAME">rst_n</parameter>
+         <parameter name="RSTACTIVE">low</parameter>
+         <parameter name="DIRECTIVES" />
+      </parameters>
 
-  <!-- ========================================================== -->
-  <!-- TOPLEVEL RUNNABLES FORMAL -->
-  <!-- ========================================================== -->
-  
-  <runnable name="Formal" type="group" sequential="no">
-    <parameters>
-      <parameter name="COMPILE_PARAMS"></parameter>
-      <parameter name="DUTMODULE"></parameter>
-      <parameter name="DUTLIB"   ></parameter>
-      <parameter name="DUTPREFIX"></parameter>
-      <parameter name="CLKNAME"  >clk</parameter>
-      <parameter name="CLKDUTY"  >0 50</parameter>
-      <parameter name="CLKPERIOD">100</parameter>
-      <parameter name="RSTNAME"  >rst_n</parameter>
-      <parameter name="RSTACTIVE">low</parameter>
-      <parameter name="DIRECTIVES"></parameter>
-    </parameters>
+      <localfile name="compile_directives.do" expand="yes">
+         <!-- <command>netlist clock (%CLKNAME%) -period (%CLKPERIOD%) -waveform {(%CLKDUTY%)}</command> <command>netlist reset (%RSTNAME%) -active_(%RSTACTIVE%)</command> ! -->
+         <command>(%DIRECTIVES%)</command>
+      </localfile>
 
-    <localfile name="compile_directives.do" expand="yes">
-      <!--command>netlist clock (%CLKNAME%) -period (%CLKPERIOD%) -waveform {(%CLKDUTY%)}</command>
-      <command>netlist reset (%RSTNAME%) -active_(%RSTACTIVE%)</command!-->
-      <command>(%DIRECTIVES%)</command>
-    </localfile>
+      <members>
+         <member>UserProperty_checking</member>
+         <member>AutomaticProperty_checking</member>
+         <member>Coverage_exclusions</member>
+      </members>
+   </runnable>
 
-    <members>
-      <member>UserProperty_checking</member>
-      <member>AutomaticProperty_checking</member> 
-      <member>Coverage_exclusions</member> 
-    </members>
-  </runnable>
+   <runnable name="Coverage_exclusions" type="group" sequential="yes">
+      <members>
+         <member>Generate_coverage_exclusions</member>
+         <member>Apply_coverage_exclusions</member>
+      </members>
+   </runnable>
 
-  <runnable name="Coverage_exclusions" type="group" sequential="yes">
-    <members>
-      <member>Generate_coverage_exclusions</member>
-      <member>Apply_coverage_exclusions</member>
-    </members>
-  </runnable>
+   <runnable name="UserProperty_checking" type="task">
+      <parameters>
+         <parameter name="VERIFY_PARAMS">-effort low</parameter>
+         <parameter name="ucdbfile">(%INSTANCE%).ucdb</parameter>
+      </parameters>
+      <preScript launch="exec">
+         <command>if {[file exists (%mergefile%)]} {file rename (%mergefile%) tmp.ucdb; vcover remove -out (%mergefile%) tmp.ucdb -tplan; file delete tmp.ucdb};</command>
+      </preScript>
 
-  <runnable name="UserProperty_checking" type="task">
-    <parameters>
-      <parameter name="VERIFY_PARAMS">-effort low</parameter>
-      <parameter name="ucdbfile">(%INSTANCE%).ucdb</parameter>
-    </parameters>
-    <preScript launch="exec">
-      <command>if {[file exists (%mergefile%)]} {mv (%mergefile%) tmp.ucdb;vcover remove -out (%mergefile%) tmp.ucdb -tplan;rm tmp.ucdb};</command>
-    </preScript>
+      <execScript launch="exec">
+         <command>qverify -c -od propcheck_db -do "do ../compile_directives.do;
+            formal compile -d (%DUTLIB%).(%DUTMODULE%) -modelsimini (%MODELSIMINI%) (%COMPILE_PARAMS%);
+            formal verify (%VERIFY_PARAMS%);
+            formal generate ucdb (%TASKDIR%)/(%ucdbfile%);
+            exit"
+         </command>
+      </execScript>
+   </runnable>
 
-    <execScript launch="exec">
-     <command>qverify -c -od propcheck_db -do "do ../compile_directives.do;
-       formal compile -d (%DUTLIB%).(%DUTMODULE%) -modelsimini (%MODELSIMINI%) (%COMPILE_PARAMS%);
-       formal verify (%VERIFY_PARAMS%);
-       formal generate ucdb (%TASKDIR%)/(%ucdbfile%);
-       exit"
-     </command>
-    </execScript>
-  </runnable>
+   <runnable name="AutomaticProperty_checking" type="task">
+      <parameters>
+         <parameter name="VERIFY_PARAMS">-effort low</parameter>
+      </parameters>
+      <execScript launch="exec">
+         <command>qverify -c -od autocheck_db -do "do ../compile_directives.do;
+            autocheck compile -d (%DUTLIB%).(%DUTMODULE%) -modelsimini (%MODELSIMINI%) (%COMPILE_PARAMS%);
+            autocheck verify (%VERIFY_PARAMS%);
+            exit"
+         </command>
+      </execScript>
+   </runnable>
 
-  <runnable name="AutomaticProperty_checking" type="task">
-    <parameters>
-      <parameter name="VERIFY_PARAMS">-effort low</parameter>
-    </parameters>
-    <execScript launch="exec">
-     <command>qverify -c -od autocheck_db -do "do ../compile_directives.do;
-       autocheck compile -d (%DUTLIB%).(%DUTMODULE%) -modelsimini (%MODELSIMINI%) (%COMPILE_PARAMS%);
-       autocheck verify (%VERIFY_PARAMS%);
-       exit"
-     </command>
-    </execScript>
-  </runnable>
+   <runnable name="Generate_coverage_exclusions" type="task">
+      <parameters>
+         <parameter name="VERIFY_PARAMS">-effort low</parameter>
+      </parameters>
+      <execScript launch="exec">
+         <command>qverify -c -od covercheck_db -do "do ../../compile_directives.do;
+            covercheck compile -d (%DUTLIB%).(%DUTMODULE%) -modelsimini (%MODELSIMINI%) (%COMPILE_PARAMS%);
+            covercheck load ucdb (%mergefile%);
+            covercheck verify (%VERIFY_PARAMS%);
+            covercheck generate exclude (%TASKDIR%)/covercheck_exclude.do -prefix (%DUTPREFIX%);
+            exit"
+         </command>
+         <command>file copy (%TASKDIR%)/covercheck_exclude.do (%CoverageAutoExcludeFile%)</command>
+      </execScript>
+   </runnable>
+   <!--previous command>qverify -c -od autocheck_db -do "do autocheck_directives.do; covercheck compile -d (%DUTMODULE%) -work (%DUTLIB%) -modelsimini (%MODELSIMINI%) (%COMPILE_PARAMS%); echo DOESNT WORK STACK TRACE ERROR covercheck load ucdb (%mergefile%); covercheck verify (%VERIFY_PARAMS%); covercheck generate exclude (%TASKDIR%)/covercheck_exclude.do -prefix (%DUTPREFIX%); exit"</command! -->
 
-  <runnable name="Generate_coverage_exclusions" type="task">
-    <parameters>
-      <parameter name="VERIFY_PARAMS">-effort low</parameter>
-    </parameters>
-    <execScript launch="exec">
-     <command>qverify -c -od covercheck_db -do "do ../../compile_directives.do;
-       covercheck compile -d (%DUTLIB%).(%DUTMODULE%) -modelsimini (%MODELSIMINI%) (%COMPILE_PARAMS%);
-       covercheck load ucdb (%mergefile%);
-       covercheck verify (%VERIFY_PARAMS%);
-       covercheck generate exclude (%TASKDIR%)/covercheck_exclude.do -prefix (%DUTPREFIX%);
-       exit"
-     </command>
-     <command>cp  (%TASKDIR%)/covercheck_exclude.do (%CoverageAutoExcludeFile%);</command>
-    </execScript>
-  </runnable>
-     <!--previous command>qverify -c -od autocheck_db -do "do autocheck_directives.do;
-      covercheck compile -d (%DUTMODULE%) -work (%DUTLIB%) -modelsimini (%MODELSIMINI%) (%COMPILE_PARAMS%);
-      echo DOESNT WORK STACK TRACE ERROR covercheck load ucdb (%mergefile%);
-      covercheck verify (%VERIFY_PARAMS%);
-      covercheck generate exclude (%TASKDIR%)/covercheck_exclude.do -prefix (%DUTPREFIX%);
-      exit"</command!-->
+   <runnable name="Apply_coverage_exclusions" type="task">
+      <execScript>
+         <command>vsim -c -viewcov (%mergefile%) -do "do (%CoverageAutoExcludeFile%); coverage save (%mergefile%); q -f"</command>
+      </execScript>
+   </runnable>
 
-  <runnable name="Apply_coverage_exclusions" type="task">
-    <execScript>
-     <command>vsim -c -viewcov (%mergefile%) -do "do (%CoverageAutoExcludeFile%);coverage save (%mergefile%);q -f"</command>
-    </execScript>
-  </runnable>
-  
-  <!-- ================================================ -->
-  <!-- == User can define TCL procedures that they   == -->
-  <!-- == wish to call in action scripts and         == -->
-  <!-- parameters here within a usertcl element.     == -->
-  <!-- ================================================ -->
-  <usertcl name="default">
-<!-- genrand using a file to store seed o fix GUI display issue 
-     generating sed at parameter expansion at time 0 and during Simulate task -->
-    proc GenRand { randCnt } {
-    global seedDir
+   <!-- ================================================ -->
+   <!-- == User can define TCL procedures that they == -->
+   <!-- == wish to call in action scripts and == -->
+   <!-- parameters here within a usertcl element. == -->
+   <!-- ================================================ -->
+   <usertcl name="default">
+      <!-- genrand using a file to store seed o fix GUI display issue generating sed at parameter expansion at time 0 and during Simulate task -->
+      proc GenRand {randCnt} {
+        global seedDir
 
-    if {![file exist $seedDir]} { file mkdir  $seedDir }
-    if {[file exist [file join $seedDir $randCnt]]} {
-<!-- get seed from already generated iteration -->
-      set ifile [open [file join $seedDir $randCnt] "r"]
-      set seed [lindex [read $ifile] 0]
-      close $ifile
-      return $seed
-    } else {
-<!--  set new seed for not run yet iteration -->
-      set maxFactor [expr 2147483647 + 1]
-      set value [expr (int (rand() * ($maxFactor - 1))) % $maxFactor]
-      set ofile [open [file join $seedDir $randCnt] "w"]
-      puts $ofile $value
-      close $ofile
-      return $value
-    }
-   }
+        if {![file exist $seedDir]} { file mkdir $seedDir }
+        if {[file exist [file join $seedDir $randCnt]]} {
+          <!-- get seed from already generated iteration -->
+          set ifile [open [file join $seedDir $randCnt] "r"]
+          set seed [lindex [read $ifile] 0]
+          close $ifile
+          return $seed
+        } else {
+          <!-- set new seed for not run yet iteration -->
+          set maxFactor [expr 2147483647 + 1]
+          set value [expr (int (rand() * ($maxFactor - 1))) % $maxFactor]
+          set ofile [open [file join $seedDir $randCnt] "w"]
+          puts $ofile $value
+          close $ofile
+          return $value
+        }
+      }
 
-    proc OkToMerge {userdata} {
-    upvar $userdata data
- 
-    if { [ExpandRmdbParameters $data(ACTION) (%COVERAGEMODE%)] == 0 || [ExpandRmdbParameters $data(ACTION) (%PROFILEMODE%)] == 1 || [ExpandRmdbParameters $data(ACTION) (%DEBUGMODE%)] == 1 } {
-       echo NOTE !  Merge+PostProcess+Report are skipped because COVERAGEMODE = 0 || PROFILEMODE = 1 || DEBUGMODE = 1
-       return 0
-       } else {
-    return 1 ;# passed and failed ...  OK to merge
-       }
-    }
+      proc OkToMerge {userdata} {
+        upvar $userdata data
+        if {[string match $data(passfail) "passed"]} {
+          WriteFailedTestList $data(ACTION) $data(RUNNABLE);#issue with getting data passed around into function
+        }
+        if {[ExpandRmdbParameters $data(ACTION) (%COVERAGEMODE%)] == 0 || [ExpandRmdbParameters $data(ACTION) (%PROFILEMODE%)] == 1 || [ExpandRmdbParameters $data(ACTION) (%DEBUGMODE%)] == 1} {
+          appLayer::logNote "Merge+PostProcess+Report are skipped because COVERAGEMODE = 0 || PROFILEMODE = 1 || DEBUGMODE = 1"
+          return 0
+        } else {
+          return 1 ;# passed and failed ... OK to merge
+        }
+      }
 
-  proc GetUcdbAttribute {ucdbfile attribute} {
-     set ucdbdata [vcover stats $ucdbfile -tcl]
-     set len [llength [lindex $ucdbdata 0]]
-     if {$len &gt; 2} {
-       set ucdbdata [lindex $ucdbdata 0]
-     }
-     foreach entry $ucdbdata {
-       if {[string match [lindex $entry 0] $attribute]} {
-         return [lindex $entry 1]
-       }
-     }
-   }
+      <!-- Globals for testlist parsing -->
+      array set content {}
+      set ::strNum 0
+      set ::t_valid 0
+      set ::v_valid 0
+      set ::isStr 0
+      set ::store 0
+      set ::test ""
+      set ::overrides ""
 
-<!-- COPY PASTE From FAQ Calc Sheet Test Definition -->
-<!--BEGIN  tcl code for spreadsheet parsing -->
-   array set content {}
-   array set testrecord {}
-   set ::strNum 0
-   set ::t_valid 0 
-   set ::v_valid 0
-   set ::isStr 0
-   set ::store 0   
+      <!-- helper procedures for parsing spreadsheets -->
+      proc ::formatData {data col} {
+        global content cellData t_valid v_valid strNum isStr strNum tlistfile test overrides
+        if {$t_valid} { set content($strNum) $data }
+        if {$v_valid} {
+          set pre ""
+          if {[llength $tlistfile] &gt; 0} {
+            if {![regexp {Testname|Type|Repeat|Seeds} [lindex $tlistfile 0 $col]]} {
+              set pre "[lindex $tlistfile 0 $col]"
+              lappend overrides $pre
+            }
+          }
+          if {$isStr} {
+            set temp $content($data)
+          } else {
+            set temp $data
+          }
+          if {[string match $pre ""]} {
+            set cellData [format "%s" $temp]
+          } else {
+            set cellData [format {%s="%s"} $pre $temp]
+          }
+        }
+      }
 
-   proc ::Xmlestart {nm attlist args} {
-     global v_valid isStr store sheetName
-     if {[string match $nm "text:p"]} { set v_valid 1 ; set isStr 0 }
-     if {[string match $nm "table:table"]} {
-       foreach {att value} $attlist {
-         if {[string match $att "table:name"]} { if {[string match $value $sheetName]} { set store 1 } else { set store 0 } }
-       }
-     }
-   }
-
-   proc ::Xmleend {nm args} {
-     global tlistfile cellData store
-     if {[string match $nm "table:table-row"] &amp;&amp; $store} { append tlistfile [format "\n"] }
-     if {[string match $nm "table:table-cell"] &amp;&amp; $store} { append tlistfile [format "{ %s } " $cellData] ; set cellData "" }
-     if {[string match $nm "table:table"]} {
-       set cellData ""
-     }
-   }
-
-   proc ::Xmlcdata {data args} {
-     global strNum t_valid v_valid content isStr cellData
-     if {$t_valid} { set content($strNum) $data }
-     if {$v_valid} {
-       if {$isStr} {
-         set cellData [format "%s " $content($data)]
-       } else {
-         set cellData [format "%s " $data]
-       }
-     }
-   }
-
-<!--END  tcl code for spreadsheet parsing -->
-
-<!--BEGIN tcl code for creating tcl tests list from either spreadsheet or csv -->
-   proc XmlReader {zipname filename} {
-
-     global env auto_path
-     catch {package require xml} error
-     if {![string is double $error]} {
-       lappend auto_path $env(VSIM_LIBRARY) $env(MODEL_TECH)
-       catch {package require xml} error
-     }
-     catch {exec unzip -o $zipname $filename} error 
-     set ifile [open $filename "r"]
-     set rawxml [read $ifile]
-     close $ifile
-     file delete $filename
-
-     set p [::xml::parser]
-     $p configure -elementstartcommand Xmlestart
-     $p configure -elementendcommand Xmleend
-     $p configure -characterdatacommand Xmlcdata
-     catch {$p parse $rawxml} msg
-   }
-
-   proc CsvReader {filename} {
-   global tlistfile
-
-    set tfile [open $filename r]
- 
-   append tlistfile [format "{ Testname  } { Type  } { Options  } { Repeat  } { Seeds  }"]  
-   while {![eof $tfile]} {
-    gets $tfile line
-    if {[string range $line 0 0] != "#"} {
-       if {[llength $line] != 0} {
-          if {[llength $line] == 1} {
-             set num 1
-             } else {
-             set num [lindex $line 3]
-             }
-         append tlistfile [format "\n"]
-         <!-- store test name -->
-         append tlistfile [format "{ %s  } " [lindex $line 0]]
-         <!-- store test type -->
-         append tlistfile [format "{ %s  } " [lindex $line 1]]
-	 <!-- store options -->
-         append tlistfile [format "{ %s  } " [lindex $line 2]]
-	 <!-- store repeat count -->
-         append tlistfile [format "{ %s  } " [lindex $line 3]]
-	 <!-- store seeds -->
-         append tlistfile [format "{ "]
-         for {set repeat 4} {$repeat &lt; [expr $num + 4]} {incr repeat} {
-              if {[lindex $line $repeat] == ""} {
+      <!-- procedures for reading in a testlist specified in OpenOffice Calc spreadsheet -->
+      proc ::CalcXmlestart {nm attlist args} {
+        global sheetName v_valid t_valid isStr store
+        if {[string match $nm "text:p"]} { set v_valid 1 ; set isStr 0 }
+        if {[string match $nm "table:table"]} {
+          foreach {att value} $attlist {
+            if {[string match $att "table:name"]} {
+              if {[string match $value $sheetName]} {
+                set store 1
               } else {
-                 if { [lindex $line $repeat] == "random"} {
-                 } else {
-                 append tlistfile [format "%s "  [lindex $line $repeat]]
-                 }
-              }
-         }
-         append tlistfile [format " } "]
-       }
-      }
-    }
-    close $tfile
-    echo $tlistfile
-    return $tlistfile  
-}
-
-<!--END tcl code for creating tcl tests list from either spreadsheet or csv -->
-
-<!--BEGIN tcl code invoked by Simulation runnable to extract tests to be ran -->
-   proc ReadCalc {filename sheet} {
-     global tlistfile sheetName
-     set tlistfile ""
-     set sheetName $sheet
-     echo [format "## Note: Reading from file '%s' sheet name '%s' ##" $filename $sheet]
-     if {[string match [file extension $filename] ".ods"]} {
-       XmlReader $filename content.xml
-     }
-   }
-
-   proc ReadCsv {filename} {
-     global tlistfile
-     set tlistfile ""
-     echo [format "## Note: Reading from file '%s' ##" $filename]
-     CsvReader $filename
-   }
-
-<!-- procedure to return the list of test to be run for a type of test (directed or uvm) -->
-proc GetTestCases {testtype testfileformat testfile testfile_tab seeddir} {
-   global tlistfile seedDir
-
-   set seedDir $seeddir
-
-   echo Test File Format is $testfileformat
-   echo Test Category to be extracted is $testtype
-<!-- if it is a regression and not retrieving failed testcases
-     then we check the format and call the according extraction procedure -->
-   if {![string equal "failed" $testtype]} {   
-      if {[string equal "csv" $testfileformat]} {
-         ReadCsv $testfile
-         } elseif {[string equal "sheet" $testfileformat]} {
-         ReadCalc $testfile $testfile_tab
-         } else {
-         echo Unsupported test file format ! fix it ! either csv or sheet is supported   
-         return -1
-         }
-      }
-<!-- use the global tlistfile list to get the according list of $testtype -->
-<!--   echo [format "## Note: Read list output to extract from %s tests '%s' ##" $testtype $tlistfile]-->
-   return [GenerateTestList $testtype $tlistfile]
-      
- }
-
-<!-- procedure to write out to a file all failed test from regression -->
-  proc WriteFailedTestList {faillog mergefile} {
-     global testrecord
-<!-- set testfile in csv format to write failed tests name/options/repeat=1/seed-->
-     set faillogcsv $faillog.csv
-     set outFile [open $faillogcsv a]
-     echo [format "Writing Failures into '%s'" $faillogcsv]
-<!--     echo [format "## Note: Test Record is '%s' ##" [lsort [array names testrecord]]]-->
-     <!--Parse all tests and detect if they are failed -->
-     foreach test [lsort [array names testrecord]] {
-      set testtype [lindex [split $test ","] 0]
-      set testname_seed [lindex [split $test ","] 1]
-      set teststatus [lindex [vcover attr -test [format "%s_test~%s" [lindex $testtype 0] $testname_seed] -name TESTSTATUS -concise -tcl $mergefile] 0]
-      echo [format "%s %s %s" $testname_seed $testtype $teststatus]
-       <!-- store test if status is Error or Fatal -->
-      if {$teststatus == 2 || $teststatus == 3} {
-         set uvm_testname [lindex [split $testname_seed "."] 0]
-         set testoptions [lindex [GetTestSettings $testtype $testname_seed] 0]
-         set seed [lindex [split $testname_seed "."] 1]
-         echo [format "%s %s { %s } 1 %s " $uvm_testname $testtype $testoptions $seed ]
-         puts $outFile [format "%s %s { %s } 1 %s " $uvm_testname $testtype $testoptions $seed]
-       }
-     }
-     close $outFile
-}
-
-   proc GenerateTestList {testtype testlist} {
-     global testrecord
-     array set testrecord_return {}
-      
-      # Parse the test file and build a testlist in a TCL array
-      echo [format "## Note: Extract Test List for %s with testlist entry  '%s' ##" $testtype $testlist]
-      foreach {testname type opts count seeds} $testlist {
-<!-- store only tests with type = $testtype passed as an argument -->
-         if { [string equal [lindex $type 0] $testtype]} {
-           if {![string match [lindex $testname 0] "Testname"] &amp;&amp; ![string match #* [lindex $testname 0]]} {
-             if {[string match [lindex $count 0] ""]} { set count 1}
-             incr count
-             for {set repeat 1} {$repeat &lt; $count} {incr repeat} {
-               if {[string match [lindex $seeds [expr $repeat - 1]] ""] || [string match [lindex $seeds [expr $repeat - 1]] "random"]} {
-                 set taskname [format "%s.%s" [lindex $testname 0] [GenRand [incr randCnt 1]]]
-               } else {
-                 set taskname [format "%s.%s" [lindex $testname 0] [lindex $seeds [expr $repeat - 1]]]
-               }
-	       <!-- store test in array -->
-               set testrecord($testtype,$taskname) $opts                   
-               }
-               }
+                set store 0
               }
             }
-<!--      echo [format "## Note: Updated Test Record for %s is '%s' ##" $testtype [lsort [array names testrecord $testtype*]]]-->
-      foreach test [lsort [array names testrecord $testtype*]] {
-<!-- reconstruct test record without testype prefix to return the testname.seed lonly -->
-<!--      echo [format "## Note: Reconstruct Test Record from %s to %s ##" $test [lindex [split $test ","] 1]]-->
-	       set testrecord_return([lindex [split $test ","] 1]) testrecord($test)
-	       }
-      echo [format "## Note: Extracted Test Record for %s is '%s' ##" $testtype [lsort [array names testrecord_return]]]
-      return [lsort [array names testrecord_return]]
-   }
+          }
+        }
+      }
 
-   proc GetTestSettings {testtype test} {
-      global testrecord
-      return [list $testrecord($testtype,$test)]
-   }
+      proc ::CalcXmleend {nm args} {
+        global tlistfile cellData store test
+        if {[string match $nm "table:table-row"] &amp;&amp; $store} {
+          if {[llength $tlistfile] &gt; 0} {
+            lappend tlistfile [string trim [join $test]]
+          } else {
+            lappend tlistfile [string trim [join $test]]
+          }
+          set test ""
+        }
+        if {[string match $nm "table:table-cell"] &amp;&amp; $store} { lappend test [format "%s" $cellData] ; set cellData "" }
+        if {[string match $nm "table:table"]} { set cellData ""}
+      }
 
-<!--END tcl code invoked by Simulation runnable to extract tests to be ran -->
+      proc ::CalcXmlcdata {data args} {
+        global test
+        formatData $data [llength $test]
+      }
 
-   proc GetLinesOfCodeFromPath {path ext} {
-    return [exec find $path -name "$ext" -print0 | xargs -0 cat | wc -l]
-    }
+      <!-- procedures for reading in a testlist specified in Excel spreadsheet -->
+      array set sheets {}
+      set ::alph "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+      set ::col 0
 
-   proc GetLinesOfCodeFromPathlist {pathlist ext} {
- 	set tclist ""
-    	set tfile [open $pathlist r]
-	set num 0
-	while {![eof $tfile]} {
-    		gets $tfile line
-		#echo $line
-    		if {[string range $line 0 0] != "#"} {
-    			if {[llength $line] != 0} {
-    				set num [expr $num + [exec find $line -name &quot;${ext}&quot; -print0 | xargs -0 cat | wc -l]]
-				#echo $num
-    			}
-    		}
-    	}
-    	close $tfile
-    	return $num
-    }
+      proc ::ExcelXmlestart {nm attlist args} {
+        global t_valid v_valid isStr test col sheets alph
+        if {[string match $nm "row"]} { set test "" }
+        if {[string match $nm "t"]} { set t_valid 1 }
+        if {[string match $nm "v"]} { set v_valid 1 }
+        if {[string match $nm "c"]} {
+          set isStr 0
+          foreach {att value} $attlist {
+            if {[string match $att "t"]} {set isStr 1}
+            if {[string match $att "r"]} {
+              regsub -all {[^a-zA-Z]} $value "" temp
+              set col [string first $temp $alph]
+            }
+          }
+        }
+        if {[string match $nm "sheet"]} {
+          set sheets([lindex $attlist 1]) [lindex $attlist 3]
+        }
+      }
 
-   proc GetLinesOfCodeFromFilelist {filelist} {
- 	set tclist ""
-    	set tfile [open $filelist r]
-	set num 0
-	while {![eof $tfile]} {
-    		gets $tfile line
-		#echo $line
-    		if {[string range $line 0 0] != "#"} {
-    			if {[llength $line] != 0} {
-    				set num [expr $num + [exec wc -l &lt; $line]]
-				#echo $num
-    			}
-    		}
-    	}
-    	close $tfile
-    	return $num
-    }
+      proc ::ExcelXmleend {nm args} {
+        global tlistfile cellData t_valid v_valid strNum test
+        if {[string match $nm "t"]} { set t_valid 0 ; incr strNum }
+        if {[string match $nm "v"]} { set v_valid 0 }
+        if {[string match $nm "row"]} { lappend tlistfile [join $test] }
+        if {[string match $nm "c"]} {
+          lappend test $cellData
+          set cellData ""
+        }
+        if {[string match $nm "sheets"]} { break }
+      }
 
+      proc ::ExcelXmlcdata {data args} {
+        global col
+        formatData $data $col
+      }
 
-  </usertcl>
+      proc XmlReader {zipname filename} {
+        package require xml
+        set hZip [zip open $zipname]
+        catch {zip set $hZip $filename} error
+        if {![string match $error ""]} { return }
+        set rawxml [zip read $hZip]
+        zip close $hZip
+        set p [::xml::parser]
+        if {[string match [file extension $zipname] ".xlsx"]} {
+          $p configure -elementstartcommand ExcelXmlestart
+          $p configure -elementendcommand ExcelXmleend
+          $p configure -characterdatacommand ExcelXmlcdata
+        } else {
+          $p configure -elementstartcommand CalcXmlestart
+          $p configure -elementendcommand CalcXmleend
+          $p configure -characterdatacommand CalcXmlcdata
+        }
+        catch {$p parse $rawxml} msg
+      }
+
+      proc ReadExcel {filename sheet} {
+        global tlistfile sheets
+        XmlReader $filename xl/workbook.xml
+        XmlReader $filename xl/sharedStrings.xml
+        XmlReader $filename xl/worksheets/sheet$sheets($sheet).xml
+      }
+
+      proc ReadCalc {filename sheet} {
+        global tlistfile sheetName
+        set sheetName $sheet
+        XmlReader $filename content.xml
+        GenerateTestList $tlistfile
+      }
+
+      proc ReadSS {filename sheet} {
+        global tlistfile
+        puts [format "## Note: Reading from file '%s' sheet name '%s' ##" $filename $sheet]
+        set ext [file extension $filename]
+        if {[string match $ext ".xlsx"]} {
+          ReadExcel $filename $sheet
+        } elseif {[string match $ext ".ods"]} {
+          ReadCalc $filename $sheet
+        } else {
+          appLayer::logError "Unrecognized file format $ext encountered. Expecting either *.xlsx and *.ods."
+        }
+        set tlistfile [lreplace $tlistfile 0 0]      
+      }
+
+      proc CsvReader {filename} {
+        global tlistfile
+        set tfile [open $filename r]
+        while {![eof $tfile]} {
+          gets $tfile line
+          if {[string range $line 0 0] != "#"} {
+            if {[llength $line] != 0} {
+              lappend tlistfile [format "%s" $line]
+            }
+          }
+        }
+        close $tfile
+      }
+
+      proc ReadCsv {filename} {
+        global tlistfile
+        appLayer::logNote [format "Reading from file '%s'" $filename]
+        CsvReader $filename
+        GenerateTestList $tlistfile
+      }
+
+      proc GetTestCases {type sim filename sheet} {
+        global tlistfile parsed
+        set tlistfile ""
+        if {![info exists parsed]} {
+          set parsed 1
+          if {[string equal "csv" $type]} {
+            ReadCsv $filename
+          } else {
+            ReadSS $filename $sheet
+          }
+        }
+        if {[string match $sim "uvm"]} {
+          return [PathRelativeToRmdb uvm_tests.tl]
+        } else {
+          return [PathRelativeToRmdb directed_tests.tl]
+        }
+      }
+
+      proc GenerateTestList {testlist} {
+        set dfile [open [PathRelativeToRmdb directed_tests.tl] w]
+        set ufile [open [PathRelativeToRmdb uvm_tests.tl] w]
+
+        foreach test $testlist {
+          if {[regexp { uvm } $test]} {
+            puts $ufile [regsub { uvm } $test { }]
+          } else {
+            puts $dfile [regsub { directed } $test { }]
+          }
+        }
+        close $dfile
+        close $ufile
+        if {[file size [PathRelativeToRmdb uvm_tests.tl] == 0]} { file delete [PathRelativeToRmdb uvm_tests.tl] }
+        if {[file size [PathRelativeToRmdb directed_tests.tl] == 0]} { file delete [PathRelativeToRmdb directed_tests.tl] }
+      }
+
+      proc WriteFailedTestList {action runnable} {
+        global overrides
+
+        set faillogcsv [ExpandRmdbParameters $action "(%faillog%)"]
+        set uvm_testname [ExpandRmdbParameters $action "(%uvm_testname%)"]
+        set seed [ExpandRmdbParameters $action "(%seed%)"]
+        set testoptions [ExpandRmdbParameters $action "(%testoptions%)"]
+        if {[string match $runnable "UVMTests"]} {
+          set type "uvm"
+        } else {
+          set type "directed"
+        }
+        foreach item $overrides {
+          set val [ExpandRmdbParameters $action (%$item:%)]
+          if {![string match $val ""]} {
+            lappend out "$item=\"$val\""
+          }
+        }
+        AppendToFile $faillogcsv {$uvm_testname $type 1 $testoptions $seed [string trim [join out]]}
+      }
+
+      proc GetLinesOfCodeFromPath {path ext} {
+        return [exec find $path -name "$ext" -print0 | xargs -0 cat | wc -l]
+      }
+
+      proc GetLinesOfCodeFromPathlist {pathlist ext} {
+        set tclist ""
+        set tfile [open $pathlist r]
+        set num 0
+        while {![eof $tfile]} {
+          gets $tfile line
+          if {[string range $line 0 0] != "#"} {
+            if {[llength $line] != 0} {
+              set num [expr $num + [exec find $line -name &quot;${ext}&quot; -print0 | xargs -0 cat | wc -l]]
+            }
+          }
+        }
+        close $tfile
+        return $num
+      }
+
+      proc GetLinesOfCodeFromFilelist {filelist} {
+        set tclist ""
+        set tfile [open $filelist r]
+        set num 0
+        while {![eof $tfile]} {
+          gets $tfile line
+          if {[string range $line 0 0] != "#"} {
+            if {[llength $line] != 0} {
+              set num [expr $num + [exec wc -l &lt; $line]]
+            }
+          }
+        }
+        close $tfile
+        return $num
+      }
+      
+      <!-- Platform independent way to get lines of code -->
+      proc linecount {file {eofchar "\n"}} {
+        set i 0
+        set fid [open $file]        
+        fconfigure $fid -buffersize 524288 -translation binary
+        while {![eof $fid]} {
+          incr i [regsub -all $eofchar [read $fid 524288] $eofchar junk]
+        }
+        close $fid
+        return $i
+      }
+   
+      <!-- Utility procedures so log messages will consistent -->
+      namespace eval appLayer {
+        proc logNote {msg} {
+          echo [format "**[Note]: %s" $msg]
+        }
+        proc logError {msg} {
+          echo [format "**[Error]: %s" $msg]
+        }
+      }
+   </usertcl>
 </rmdb>
